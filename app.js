@@ -2,6 +2,7 @@
 "use strict";
 
 const DATA = window.FE_DATA;
+const GUIDE = window.FE_GUIDE;
 const ALL = [...DATA.A, ...DATA.B, ...DATA.P];
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
@@ -76,6 +77,7 @@ function view(name){
   if(name==="weak") renderWeak();
   if(name==="mock") renderMock();
   if(name==="review") renderReview();
+  if(name==="guide") renderGuide();
   window.scrollTo({top:0,behavior:"auto"});
 }
 $$(".nav-btn").forEach(b=>b.addEventListener("click",()=>view(b.dataset.view)));
@@ -145,7 +147,7 @@ function renderFlight(){
       </ul>
     </section>`;
   $("#out1").onclick=()=>startWeakQuiz(10,15);
-  $("#out2").onclick=()=>startQuiz(DATA.A,{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
+  $("#out2").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
   $("#out3").onclick=()=>startReviewQuiz(15,15);
   $("#ret1").onclick=()=>startQuiz(DATA.B,{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
   $("#ret2").onclick=()=>startReviewQuiz(20,20,"B");
@@ -175,13 +177,88 @@ function renderWeak(){
   $("#c10").onclick=()=>startCategory($("#categoryPick").value,10);
   $("#c20").onclick=()=>startCategory($("#categoryPick").value,20);
 }
+
+function aFamily(q){
+  if(["プロジェクト管理","サービス管理","システム監査"].includes(q.cat)) return "management";
+  if(["システム戦略","システム企画","経営戦略","ビジネスインダストリ","企業と法務"].includes(q.cat)) return "strategy";
+  return "technology";
+}
+function buildMockA(){
+  const tech=shuffle(DATA.A.filter(q=>aFamily(q)==="technology")).slice(0,41);
+  const mgmt=shuffle(DATA.A.filter(q=>aFamily(q)==="management")).slice(0,7);
+  const strat=shuffle(DATA.A.filter(q=>aFamily(q)==="strategy")).slice(0,12);
+  return [...tech,...mgmt,...strat];
+}
+function renderGuide(){
+  main.innerHTML=`
+    <h2>出題範囲・傾向</h2>
+    <section class="card">
+      <div class="chip">更新 ${esc(GUIDE.updated)}</div>
+      <h3 style="margin-top:10px">現行FEの基本仕様</h3>
+      <div class="guide-two">
+        <div class="result-box"><b>科目A</b><div>${GUIDE.exam.A.time} / ${GUIDE.exam.A.questions}</div><div class="muted">${GUIDE.exam.A.format}・評価${GUIDE.exam.A.scored}</div><div class="muted">${GUIDE.exam.A.target}</div></div>
+        <div class="result-box"><b>科目B</b><div>${GUIDE.exam.B.time} / ${GUIDE.exam.B.questions}</div><div class="muted">${GUIDE.exam.B.format}・評価${GUIDE.exam.B.scored}</div><div class="muted">${GUIDE.exam.B.target}</div></div>
+      </div>
+      <div class="install-note" style="margin-top:12px">${esc(GUIDE.officialNote)}</div>
+    </section>
+
+    <section class="card">
+      <h3>科目A 模試配分</h3>
+      ${GUIDE.aDistribution.map(x=>`<div class="weak-item"><div><b>${esc(x.name)}</b><div class="muted" style="font-size:12px">${esc(x.range)}</div></div><div style="text-align:right"><b>${x.count}問</b><div class="muted" style="font-size:11px">${x.ratio}</div></div></div>`).join("")}
+      <p class="muted" style="font-size:12px">このアプリの科目A模試は毎回この41/7/12配分で60問を組みます。中分類別の問題数はIPA非公表のため、下記は学習用目安です。</p>
+    </section>
+
+    <div class="section-title"><h2>科目A：23中分類</h2><span class="chip">Ver.9.2</span></div>
+    <section>
+      ${GUIDE.taxonomy.map(x=>`<details class="guide-detail"><summary><span>${esc(x.middle)}</span><span class="guide-count">${esc(x.count)}</span></summary><div class="inside"><div class="muted">${esc(x.major)}</div><p>${esc(x.topics)}</p></div></details>`).join("")}
+    </section>
+
+    <div class="section-title"><h2>科目B：出題範囲</h2><span class="chip">16 + 4</span></div>
+    <section class="card">
+      ${GUIDE.bScope.map(x=>`<div class="category-row"><b>${esc(x.name)}</b><div class="muted">${esc(x.body)}</div></div>`).join("")}
+    </section>
+
+    <section class="card">
+      <h3>アルゴリズム問題の問われ方</h3>
+      <ul class="list">${GUIDE.bPatterns.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+    </section>
+    <section class="card">
+      <h3>科目B 頻出テーマ</h3>
+      <ul class="list compact-list">${GUIDE.bThemes.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+    </section>
+
+    <section class="card">
+      <h3>IPA擬似言語ルール</h3>
+      <ul class="list compact-list">${GUIDE.pseudoRules.map(x=>`<li><code>${esc(x)}</code></li>`).join("")}</ul>
+      <p class="muted" style="font-size:12px">科目Bの追加問題はPython/C/Java表記を混ぜず、この記法へ統一する方針です。</p>
+    </section>
+
+    <section class="card">
+      <h3>問題作成ルール</h3>
+      <ol class="list compact-list">${GUIDE.questionRules.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>
+      <div class="guide-three">${GUIDE.difficulty.map(x=>`<div class="result-box"><b>${esc(x.name)} ${x.ratio}</b><div class="muted">A：${esc(x.A)}</div><div class="muted">B：${esc(x.B)}</div></div>`).join("")}</div>
+    </section>
+
+    <section class="card">
+      <h3>2026年9月時点の最新動向</h3>
+      <ul class="list">${GUIDE.latest.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+    </section>
+
+    <section class="card">
+      <h3>あなたの重点対策</h3>
+      <ul class="list">${DATA.weak_notes.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+      <button class="btn primary full" id="guideWeak">この弱点から10問解く</button>
+    </section>`;
+  $("#guideWeak").onclick=()=>startWeakQuiz(10);
+}
+
 function renderMock(){
   main.innerHTML=`
     <h2>本番形式</h2>
-    <section class="card"><h3>科目A</h3><p>60問・90分想定。採点まで解説は表示しません。</p><button class="btn primary full" id="mockA">60問模試を開始</button></section>
+    <section class="card"><h3>科目A</h3><p>60問・90分。テクノロジ41＋マネジメント7＋ストラテジ12で毎回組み直します。</p><button class="btn primary full" id="mockA">仕様準拠60問模試を開始</button></section>
     <section class="card"><h3>科目B</h3><p>20問・100分想定。アルゴリズム16問＋情報セキュリティ4問。</p><button class="btn primary full" id="mockB">20問模試を開始</button></section>
     <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">図表依存が少ない公開問題をオフライン用に収録。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
-  $("#mockA").onclick=()=>startQuiz(DATA.A,{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
+  $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
   $("#mockB").onclick=()=>startQuiz(DATA.B,{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
 }
