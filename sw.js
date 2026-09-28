@@ -1,11 +1,22 @@
-const CACHE = "fe-pwa-v2-20260928";
+const CACHE = "fe-pwa-v3-20260928";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./questions.js",
   "./app.js",
-  "./manifest.webmanifest"
+  "./manifest.webmanifest",
+  "./data-init.js",
+  "./data-a-1.js",
+  "./data-a-2.js",
+  "./data-a-3.js",
+  "./data-a-4.js",
+  "./data-a-5.js",
+  "./data-a-6.js",
+  "./data-b-1.js",
+  "./data-b-2.js",
+  "./data-p-1.js",
+  "./data-p-2.js",
+  "./data-p-3.js"
 ];
 
 self.addEventListener("install", event => {
@@ -13,17 +24,14 @@ self.addEventListener("install", event => {
     caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
   );
 });
-
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
-
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
-
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
@@ -36,7 +44,6 @@ self.addEventListener("fetch", event => {
     );
     return;
   }
-
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
