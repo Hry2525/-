@@ -1,0 +1,11 @@
+{
+  "name": "基本情報技術者 FE オフライン学習",
+  "short_name": "FE学習",
+  "description": "基本情報技術者試験 科目A/B・弱点演習・IPA公開問題をオフライン学習",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f8",
+  "theme_color": "#17233b",
+  "icons": []
+}
