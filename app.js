@@ -82,12 +82,90 @@ function view(name){
   if(name==="review") renderReview();
   if(name==="guide") renderGuide();
   if(name==="crash") renderCrash();
+  if(name==="dojo") renderDojo();
+  if(name==="analytics") renderAnalytics();
   window.scrollTo({top:0,behavior:"auto"});
 }
 $$(".nav-btn").forEach(b=>b.addEventListener("click",()=>view(b.dataset.view)));
 
+
+function sessionPct(x){ return x && x.total ? Math.round(x.correct/x.total*100) : null; }
+function recentMode(mode,n=3){
+  return (state.history||[]).filter(x=>x.mode===mode).slice(-n);
+}
+function avgPct(rows){
+  const valid=rows.filter(x=>x && x.total);
+  if(!valid.length) return null;
+  return Math.round(valid.reduce((s,x)=>s+(x.correct/x.total*100),0)/valid.length);
+}
+function localDay(ts){
+  const d=new Date(ts);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function dailyRows(){
+  const map={};
+  (state.history||[]).forEach(x=>{
+    const k=localDay(x.at||Date.now());
+    map[k] ||= {day:k,correct:0,total:0,sessions:0,durationSec:0,flagged:0};
+    map[k].correct+=x.correct||0;
+    map[k].total+=x.total||0;
+    map[k].sessions++;
+    map[k].durationSec+=x.durationSec||0;
+    map[k].flagged+=x.flagged||0;
+  });
+  return Object.values(map).sort((a,b)=>a.day.localeCompare(b.day));
+}
+function readinessModel(){
+  const a=avgPct(recentMode("mockA",2));
+  const b=avgPct(recentMode("mockB",2));
+  const crash=avgPct(recentMode("crash30",3));
+  const trace=avgPct(recentMode("btrace10",3));
+  const attempted=Object.values(state.stats).filter(x=>x.attempts>0).length;
+  const coverage=Math.round(attempted/ALL.length*100);
+  const components=[
+    {name:"科目A模試",value:a,weight:30},
+    {name:"科目B模試",value:b,weight:35},
+    {name:"70/20/10",value:crash,weight:20},
+    {name:"Bトレース",value:trace,weight:10},
+    {name:"網羅度",value:Math.min(100,Math.round(coverage/60*100)),weight:5}
+  ];
+  const available=components.filter(x=>x.value!==null);
+  const weight=available.reduce((s,x)=>s+x.weight,0);
+  const raw=weight?Math.round(available.reduce((s,x)=>s+x.value*x.weight,0)/weight):0;
+  const coreEvidence=(a!==null?1:0)+(b!==null?1:0);
+  const sessions=(state.history||[]).length;
+  let confidence=sessions>=8?100:sessions>=5?75:sessions>=3?55:25;
+  if(coreEvidence===0) confidence=Math.min(confidence,40);
+  if(coreEvidence===1) confidence=Math.min(confidence,70);
+
+  let label="データ不足", days=null;
+  if(sessions>=3){
+    if(raw>=80 && a!==null && b!==null) label="受験圏内";
+    else if(raw>=75) label="かなり近い";
+    else if(raw>=70){label="あと少し";days="2〜4日";}
+    else if(raw>=60){label="重点補強中";days="4〜7日";}
+    else {label="基礎固め優先";days="7日以上";}
+  }
+
+  const ds=dailyRows().slice(-5);
+  let trend=null;
+  if(ds.length>=2){
+    const first=ds[0].total?ds[0].correct/ds[0].total*100:0;
+    const last=ds[ds.length-1].total?ds[ds.length-1].correct/ds[ds.length-1].total*100:0;
+    trend=Math.round((last-first)*10)/10;
+  }
+  return {score:raw,label,days,confidence,coverage,attempted,components,trend};
+}
+function todaySummary(){
+  const key=localDay(Date.now());
+  const d=dailyRows().find(x=>x.day===key) || {correct:0,total:0,sessions:0,durationSec:0,flagged:0};
+  return {...d,accuracy:pct(d.correct,d.total)};
+}
+function formatMinutes(sec){ return sec?Math.max(1,Math.round(sec/60))+"分":"—"; }
+
 function renderHome(){
   const o=overall(), weak=dynamicWeak();
+  const ready=readinessModel(), today=todaySummary();
   const doneUnique=Object.values(state.stats).filter(x=>x.attempts>0).length;
   main.innerHTML=`
     <section class="card hero">
@@ -104,6 +182,29 @@ function renderHome(){
         <button class="btn ghost" id="resumeBtn">${state.current ? "続きから" : "弱点10問"}</button>
       </div>
       <div class="actions one"><button class="btn secondary full" id="goFlight">✈ 飛行機4時間プラン</button></div>
+    </section>
+
+    <section class="card readiness-card">
+      <div class="section-title" style="margin-top:0"><h2>合格準備度</h2><span class="chip">推定</span></div>
+      <div class="readiness-main"><b>${ready.score}%</b><span>${esc(ready.label)}</span></div>
+      <div class="bar"><span style="width:${Math.min(100,ready.score)}%"></span></div>
+      <div class="kpi-row">
+        <div class="kpi"><b>${ready.coverage}%</b><small>問題網羅度</small></div>
+        <div class="kpi"><b>${ready.confidence}%</b><small>判定信頼度</small></div>
+        <div class="kpi"><b>${ready.days||'—'}</b><small>目安</small></div>
+      </div>
+      <p class="muted" style="font-size:12px">合格確率ではありません。直近のA/B模試・70/20/10・Bトレース・網羅度から算出する学習指標です。</p>
+      <button class="btn ghost full" id="goAnalytics">毎日の成果を見る</button>
+    </section>
+
+    <section class="card">
+      <h3>今日の成果</h3>
+      <div class="kpi-row">
+        <div class="kpi"><b>${today.total}</b><small>解答数</small></div>
+        <div class="kpi"><b>${today.accuracy}%</b><small>正答率</small></div>
+        <div class="kpi"><b>${formatMinutes(today.durationSec)}</b><small>計測学習時間</small></div>
+      </div>
+      <div class="actions"><button class="btn primary" id="goDojo">🥋 道場型演習</button><button class="btn secondary" id="goAnalytics2">成績分析</button></div>
     </section>
     <div class="section-title"><h2>優先弱点</h2><span class="chip">自動更新</span></div>
     <section class="card">
@@ -129,6 +230,9 @@ function renderHome(){
   `;
   $("#goCrash").onclick=()=>view("crash");
   $("#goFlight").onclick=()=>view("flight");
+  $("#goDojo").onclick=()=>view("dojo");
+  $("#goAnalytics").onclick=()=>view("analytics");
+  $("#goAnalytics2").onclick=()=>view("analytics");
   $("#resumeBtn").onclick=()=> state.current ? resumeQuiz() : startWeakQuiz(10);
 }
 function pickAdaptive(pool,n){
@@ -237,6 +341,127 @@ function renderCrash(){
   $("#crashB").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
   $("#crashReview").onclick=()=>startReviewQuiz(10);
   $("#crashFlight").onclick=()=>view("flight");
+}
+
+
+function dojoPool(source){
+  if(source==="current") return [...DATA.A,...DATA.B,...DATA.P,...CRASH.btrace,...(CRASH.security||[])];
+  if(source==="official") return [...DATA.P];
+  if(source==="legacy") return [...CRASH.old];
+  if(source==="terms") return [...CRASH.terms];
+  return [...ALL];
+}
+function filterByHistory(pool,mode){
+  if(mode==="unanswered") return pool.filter(q=>!statsFor(q).attempts);
+  if(mode==="wrong") return pool.filter(q=>statsFor(q).wrong>0);
+  if(mode==="uncertain") return pool.filter(q=>statsFor(q).uncertain);
+  return pool;
+}
+function renderDojo(){
+  const categories=[...new Set(ALL.map(q=>q.cat))].sort();
+  main.innerHTML=`
+    <h2>🥋 道場型演習</h2>
+    <section class="card">
+      <p class="muted">過去問道場の「出題範囲を選ぶ→ランダム演習→履歴から復習」の考え方を、今月受験向けに現行問題優先で再構成しています。</p>
+      <label class="field-label">出題ソース</label>
+      <select id="dojoSource" class="study-select">
+        <option value="current">現行優先（おすすめ）</option>
+        <option value="official">IPA公開問題</option>
+        <option value="legacy">旧午前・頻出のみ</option>
+        <option value="terms">初見用語</option>
+        <option value="all">全問題</option>
+      </select>
+      <label class="field-label">分野</label>
+      <select id="dojoCat" class="study-select"><option value="ALL">全分野</option>${categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select>
+      <label class="field-label">履歴条件</label>
+      <select id="dojoHistory" class="study-select">
+        <option value="all">すべて</option>
+        <option value="unanswered">未回答のみ</option>
+        <option value="wrong">過去に間違えた問題</option>
+        <option value="uncertain">「？」を付けた問題</option>
+      </select>
+      <label class="field-label">問題数</label>
+      <select id="dojoCount" class="study-select"><option>10</option><option selected>20</option><option>30</option><option>60</option></select>
+      <button class="btn primary full" id="dojoStart" style="margin-top:12px">出題開始</button>
+    </section>
+    <section class="card">
+      <h3>直前向けショートカット</h3>
+      <div class="actions"><button class="btn secondary" id="dojoCurrent20">現行20問</button><button class="btn secondary" id="dojoUnanswered">未回答10問</button></div>
+      <div class="actions"><button class="btn ghost" id="dojoWrong">誤答10問</button><button class="btn ghost" id="dojoB">科目B 20問</button></div>
+    </section>`;
+
+  $("#dojoStart").onclick=()=>{
+    const source=$("#dojoSource").value,cat=$("#dojoCat").value,h=$("#dojoHistory").value,n=Number($("#dojoCount").value);
+    let pool=dojoPool(source);
+    if(cat!=="ALL") pool=pool.filter(q=>q.cat===cat);
+    pool=filterByHistory(pool,h);
+    if(!pool.length){toast("条件に合う問題がありません");return;}
+    startQuiz(pickAdaptive(pool,n),{title:"道場型演習 "+Math.min(n,pool.length)+"問",mode:"dojo",minutes:0,exam:false});
+  };
+  $("#dojoCurrent20").onclick=()=>startQuiz(pickAdaptive(dojoPool("current"),20),{title:"現行優先20問",mode:"dojo",minutes:0,exam:false});
+  $("#dojoUnanswered").onclick=()=>{
+    const p=filterByHistory(dojoPool("current"),"unanswered"); if(!p.length){toast("未回答はありません");return;}
+    startQuiz(pickAdaptive(p,10),{title:"未回答10問",mode:"dojo",minutes:0,exam:false});
+  };
+  $("#dojoWrong").onclick=()=>{
+    const p=filterByHistory(ALL,"wrong"); if(!p.length){toast("誤答履歴がありません");return;}
+    startQuiz(pickAdaptive(p,10),{title:"誤答10問",mode:"dojo",minutes:0,exam:false});
+  };
+  $("#dojoB").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+}
+
+function renderAnalytics(){
+  const r=readinessModel(), days=dailyRows().slice(-7).reverse(), today=todaySummary();
+  const weak=dynamicWeak().slice(0,5);
+  const comps=r.components;
+  const latestA=avgPct(recentMode("mockA",2)),latestB=avgPct(recentMode("mockB",2));
+  main.innerHTML=`
+    <h2>成績・合格準備度</h2>
+    <section class="card hero">
+      <div class="muted">直近成績からの推定</div>
+      <div class="readiness-main light"><b>${r.score}%</b><span>${esc(r.label)}</span></div>
+      <p class="muted">判定信頼度 ${r.confidence}%　網羅度 ${r.coverage}%</p>
+      ${r.days?`<p><b>現在の目安：</b>${esc(r.days)}程度の重点補強</p>`:"<p>まずA/B模試と30問セットを各1回ずつ解くと判定精度が上がります。</p>"}
+    </section>
+
+    <section class="card">
+      <h3>判定内訳</h3>
+      ${comps.map(c=>`<div class="category-row"><div style="display:flex;justify-content:space-between"><b>${esc(c.name)}</b><b>${c.value===null?'未実施':c.value+'%'}</b></div>${c.value!==null?`<div class="bar"><span style="width:${Math.min(100,c.value)}%"></span></div>`:''}</div>`).join("")}
+      <p class="muted" style="font-size:12px">目標は直前演習で80%以上を安定させること。IRT採点のため、この数値を本試験の得点や合格確率とは扱いません。</p>
+    </section>
+
+    <section class="card">
+      <h3>今日</h3>
+      <div class="kpi-row">
+        <div class="kpi"><b>${today.total}</b><small>問題</small></div>
+        <div class="kpi"><b>${today.accuracy}%</b><small>正答率</small></div>
+        <div class="kpi"><b>${formatMinutes(today.durationSec)}</b><small>時間</small></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>直近7日</h3>
+      ${days.length?days.map(d=>`<div class="daily-row"><div><b>${d.day.slice(5)}</b><div class="muted">${d.sessions}セット・${d.total}問・${formatMinutes(d.durationSec)}</div></div><div class="daily-score">${pct(d.correct,d.total)}%</div></div>`).join(""):'<div class="empty">まだ日別データがありません。</div>'}
+    </section>
+
+    <section class="card">
+      <h3>弱点 Top5</h3>
+      ${weak.map(w=>`<div class="weak-item"><div><b>${esc(w.cat)}</b><div class="muted" style="font-size:12px">${w.source}</div></div><b>${w.accuracy}%</b></div>`).join("")}
+    </section>
+
+    <section class="card">
+      <h3>受験判断</h3>
+      <ul class="list">
+        <li>科目A直近2回：<b>${latestA===null?'未実施':latestA+'%'}</b></li>
+        <li>科目B直近2回：<b>${latestB===null?'未実施':latestB+'%'}</b></li>
+        <li>A/Bとも80%前後を2回続けて取れれば、かなり余裕を持った状態。</li>
+        <li>70〜79%なら受験は見えるが、誤答分野を2〜4日集中補強。</li>
+        <li>70%未満なら、受験日まで毎日30問＋Bトレースを優先。</li>
+      </ul>
+      <div class="actions"><button class="btn primary" id="analyticsCrash">今日の30問</button><button class="btn secondary" id="analyticsDojo">道場型演習</button></div>
+    </section>`;
+  $("#analyticsCrash").onclick=startCrash30;
+  $("#analyticsDojo").onclick=()=>view("dojo");
 }
 
 function renderFlight(){
@@ -501,7 +726,9 @@ function finishQuiz(){
   });
   const title=cur.title,mode=cur.mode;
   state.history ||= [];
-  state.history.push({mode,title,correct,total:qs.length,answered,flagged,at:Date.now()});
+  const endedAt=Date.now();
+  const durationSec=cur.startedAt?Math.max(0,Math.round((endedAt-cur.startedAt)/1000)):0;
+  state.history.push({mode,title,correct,total:qs.length,answered,flagged,durationSec,at:endedAt});
   state.history=state.history.slice(-80);
   state.current=null;saveState();renderResults(title,rows,correct,answered,flagged,mode);
 }
