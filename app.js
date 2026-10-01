@@ -4,7 +4,7 @@
 const DATA = window.FE_DATA;
 const CRASH = window.FE_CRASH;
 const GUIDE = window.FE_GUIDE;
-const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace];
+const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[])];
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 const main = $("#main");
@@ -121,6 +121,7 @@ function renderHome(){
         <div class="kpi"><b>${DATA.P.length}</b><small>IPA公開</small></div>
       </div>
       <p class="muted" style="font-size:13px">問題・解説・進捗は端末内に保存。通信なしで使用できます。</p>
+      <p class="muted" style="font-size:13px"><b>直前対策を含む総問題バンク：168問</b>（現行形式・公開問題・旧午前頻出・初見用語・Bトレース・セキュリティケース）</p>
     </section>
     <section class="install-note">
       <b>搭乗前に確認：</b> Safariで開き「ホーム画面に追加」→この画面右上が<b>オフライン準備完了</b>になってから機内モードへ。
@@ -153,8 +154,8 @@ function buildCrashMix(n=30){
   const termCount=n-currentCount-oldCount;
   const bCount=Math.max(1,Math.round(currentCount/3));
   const aCount=currentCount-bCount;
-  const currentA=pickAdaptive([...DATA.A,...DATA.P],aCount);
-  const currentB=pickAdaptive([...DATA.B,...CRASH.btrace],bCount);
+  const currentA=pickAdaptive([...DATA.A,...DATA.P.filter(q=>q.cat.includes("科目A"))],aCount);
+  const currentB=pickAdaptive([...DATA.B,...DATA.P.filter(q=>q.cat.includes("科目B")),...CRASH.btrace,...(CRASH.security||[])],bCount);
   const old=pickAdaptive(CRASH.old,oldCount);
   const terms=pickAdaptive(CRASH.terms,termCount);
   return shuffle([...currentA,...currentB,...old,...terms]);
@@ -233,7 +234,7 @@ function renderCrash(){
   $("#crash30").onclick=startCrash30;
   $("#btrace10").onclick=startBTrace10;
   $("#crashA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
-  $("#crashB").onclick=()=>startQuiz(DATA.B,{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#crashB").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
   $("#crashReview").onclick=()=>startReviewQuiz(10);
   $("#crashFlight").onclick=()=>view("flight");
 }
@@ -263,7 +264,7 @@ function renderFlight(){
   $("#out1").onclick=()=>startWeakQuiz(10,15);
   $("#out2").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
   $("#out3").onclick=()=>startReviewQuiz(15,15);
-  $("#ret1").onclick=()=>startQuiz(DATA.B,{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#ret1").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
   $("#ret2").onclick=()=>startReviewQuiz(20,20,"B");
 }
 function renderWeak(){
@@ -302,6 +303,11 @@ function buildMockA(){
   const mgmt=shuffle(DATA.A.filter(q=>aFamily(q)==="management")).slice(0,7);
   const strat=shuffle(DATA.A.filter(q=>aFamily(q)==="strategy")).slice(0,12);
   return [...tech,...mgmt,...strat];
+}
+function buildMockB(){
+  const algo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace];
+  const sec=[...DATA.B.filter(q=>q.cat==="情報セキュリティ"),...(CRASH.security||[])];
+  return [...pickAdaptive(algo,16),...pickAdaptive(sec,4)];
 }
 function renderGuide(){
   main.innerHTML=`
@@ -373,7 +379,7 @@ function renderMock(){
     <section class="card"><h3>科目B</h3><p>20問・100分想定。アルゴリズム16問＋情報セキュリティ4問。</p><button class="btn primary full" id="mockB">20問模試を開始</button></section>
     <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">図表依存が少ない公開問題をオフライン用に収録。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
   $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
-  $("#mockB").onclick=()=>startQuiz(DATA.B,{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#mockB").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
 }
 function reviewPool(filter){
