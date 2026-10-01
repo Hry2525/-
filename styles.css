@@ -115,3 +115,7 @@ details .inside{padding:0 0 13px}
 .compact-list li{margin:4px 0}
 code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
 @media(max-width:520px){.guide-three{grid-template-columns:1fr}.guide-two{grid-template-columns:1fr 1fr}}
+
+.day-row{display:grid;grid-template-columns:64px 1fr;gap:10px;padding:11px 0;border-bottom:1px solid #edf0f4;align-items:start}
+.day-row:last-child{border-bottom:0}
+.day-row>b{color:var(--blue)}
