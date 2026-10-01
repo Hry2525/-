@@ -1,5 +1,5 @@
 window.FE_GUIDE = {
-  updated:"2026-09-28",
+  updated:"2026-10-01",
   officialNote:"試験時間・問題数・評価対象数・科目Bの16+4・IRT・休憩はIPA公式情報。中分類別の出題数や頻出度、科目Aの41/7/12は学習用の目安として扱う。",
   exam:{
     A:{time:"90分",questions:"60問",format:"四肢択一",scored:"56問",target:"評価点600/1000以上",pace:"約1.5分/問"},
