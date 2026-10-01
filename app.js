@@ -2,8 +2,9 @@
 "use strict";
 
 const DATA = window.FE_DATA;
+const CRASH = window.FE_CRASH;
 const GUIDE = window.FE_GUIDE;
-const ALL = [...DATA.A, ...DATA.B, ...DATA.P];
+const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace];
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 const main = $("#main");
@@ -15,9 +16,11 @@ const DEFAULT_STATE = {
   stats: {},
   current: null,
   flight: {outbound:false, return:false},
+  history: [],
   lastView:"home"
 };
 let state = loadState();
+state.history ||= [];
 let timerHandle = null;
 
 function loadState(){
@@ -78,6 +81,7 @@ function view(name){
   if(name==="mock") renderMock();
   if(name==="review") renderReview();
   if(name==="guide") renderGuide();
+  if(name==="crash") renderCrash();
   window.scrollTo({top:0,behavior:"auto"});
 }
 $$(".nav-btn").forEach(b=>b.addEventListener("click",()=>view(b.dataset.view)));
@@ -96,9 +100,10 @@ function renderHome(){
         <div class="kpi"><b>${o.uncertain}</b><small>迷った問題</small></div>
       </div>
       <div class="actions">
-        <button class="btn primary" id="goFlight">✈ 4時間プラン</button>
+        <button class="btn primary" id="goCrash">🔥 直前7日モード</button>
         <button class="btn ghost" id="resumeBtn">${state.current ? "続きから" : "弱点10問"}</button>
       </div>
+      <div class="actions one"><button class="btn secondary full" id="goFlight">✈ 飛行機4時間プラン</button></div>
     </section>
     <div class="section-title"><h2>優先弱点</h2><span class="chip">自動更新</span></div>
     <section class="card">
@@ -121,9 +126,118 @@ function renderHome(){
       <b>搭乗前に確認：</b> Safariで開き「ホーム画面に追加」→この画面右上が<b>オフライン準備完了</b>になってから機内モードへ。
     </section>
   `;
+  $("#goCrash").onclick=()=>view("crash");
   $("#goFlight").onclick=()=>view("flight");
   $("#resumeBtn").onclick=()=> state.current ? resumeQuiz() : startWeakQuiz(10);
 }
+function pickAdaptive(pool,n){
+  const uniq=[...new Map(pool.map(q=>[q.id,q])).values()];
+  const weakCats=new Set(dynamicWeak().map(x=>x.cat));
+  return uniq
+    .map(q=>{
+      const s=statsFor(q);
+      let score=Math.random();
+      if(s.wrong>s.correct) score+=4;
+      if(s.uncertain) score+=3;
+      if(weakCats.has(q.cat)) score+=2;
+      if(!s.attempts) score+=1;
+      return {q,score};
+    })
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,Math.min(n,uniq.length))
+    .map(x=>x.q);
+}
+function buildCrashMix(n=30){
+  const currentCount=Math.round(n*0.7);
+  const oldCount=Math.round(n*0.2);
+  const termCount=n-currentCount-oldCount;
+  const bCount=Math.max(1,Math.round(currentCount/3));
+  const aCount=currentCount-bCount;
+  const currentA=pickAdaptive([...DATA.A,...DATA.P],aCount);
+  const currentB=pickAdaptive([...DATA.B,...CRASH.btrace],bCount);
+  const old=pickAdaptive(CRASH.old,oldCount);
+  const terms=pickAdaptive(CRASH.terms,termCount);
+  return shuffle([...currentA,...currentB,...old,...terms]);
+}
+function latestPass(mode,minPct,count=2){
+  const rows=(state.history||[]).filter(x=>x.mode===mode).slice(-count);
+  return rows.length===count && rows.every(x=>pct(x.correct,x.total)>=minPct);
+}
+function readiness(){
+  const gates=[
+    {name:"70/20/10 30問",ok:latestPass("crash30",80,2),target:"24/30以上を2回"},
+    {name:"科目Bトレース10問",ok:latestPass("btrace10",80,2),target:"8/10以上を2回"},
+    {name:"科目A模試",ok:latestPass("mockA",80,2),target:"48/60以上を2回"},
+    {name:"科目B模試",ok:latestPass("mockB",80,2),target:"16/20以上を2回"}
+  ];
+  return {gates,passed:gates.filter(x=>x.ok).length};
+}
+function startCrash30(){
+  startQuiz(buildCrashMix(30),{title:"直前 70/20/10・30問",mode:"crash30",minutes:50,exam:false});
+}
+function startBTrace10(){
+  startQuiz(pickAdaptive(CRASH.btrace,10),{title:"科目B トレース10問",mode:"btrace10",minutes:45,exam:false});
+}
+function renderCrash(){
+  const r=readiness();
+  main.innerHTML=`
+    <h2>🔥 直前7日・合格モード</h2>
+    <section class="card hero">
+      <div class="muted">受験まで1週間前後</div>
+      <h2 style="margin-top:4px">70 / 20 / 10 に固定</h2>
+      <div class="kpi-row">
+        <div class="kpi"><b>70%</b><small>現行＋Bトレース</small></div>
+        <div class="kpi"><b>20%</b><small>旧午前頻出</small></div>
+        <div class="kpi"><b>10%</b><small>初見用語</small></div>
+      </div>
+      <div class="actions"><button class="btn primary" id="crash30">今日の30問</button><button class="btn ghost" id="btrace10">Bトレース10問</button></div>
+    </section>
+
+    <section class="card">
+      <h3>受験前の安全ライン</h3>
+      <p class="muted">本試験はIRTなので単純正答率＝評価点ではありません。ここでは合格基準より余裕を持たせる練習基準として80%を置いています。</p>
+      ${r.gates.map(g=>`<div class="weak-item"><div><b>${g.ok?"✅":"⬜"} ${esc(g.name)}</b><div class="muted" style="font-size:12px">${esc(g.target)}</div></div><b>${g.ok?"達成":"未達"}</b></div>`).join("")}
+      <div class="bar"><span style="width:${r.passed/4*100}%"></span></div>
+      <p><b>${r.passed}/4</b> 達成</p>
+    </section>
+
+    <section class="card">
+      <h3>7日プラン</h3>
+      <div class="day-row"><b>Day 1</b><span>70/20/10 30問 → Bトレース10問。弱点を確定。</span></div>
+      <div class="day-row"><b>Day 2</b><span>30問 → 誤答だけ再挑戦。新規学習より穴埋め。</span></div>
+      <div class="day-row"><b>Day 3</b><span>30問 → Bトレース10問。再帰・二重ループ・配列を重点。</span></div>
+      <div class="day-row"><b>Day 4</b><span>科目A 60問を90分で。本番ペース確認。</span></div>
+      <div class="day-row"><b>Day 5</b><span>科目B 20問を100分で。終了後に誤答を全復習。</span></div>
+      <div class="day-row"><b>Day 6</b><span>本番通し：A 90分 → 休憩 → B 100分。飛行機4時間にも最適。</span></div>
+      <div class="day-row"><b>Day 7</b><span>30問＋誤答だけ。新しい難問には手を広げない。</span></div>
+    </section>
+
+    <section class="card">
+      <h3>すぐ開始</h3>
+      <div class="actions"><button class="btn secondary" id="crashA">科目A 60問</button><button class="btn secondary" id="crashB">科目B 20問</button></div>
+      <div class="actions"><button class="btn ghost" id="crashReview">誤答10問</button><button class="btn ghost" id="crashFlight">✈ 4時間プラン</button></div>
+    </section>
+
+    <section class="card">
+      <h3>来週受験なら捨てるもの</h3>
+      <ul class="list">
+        <li>現行シラバス外・旧午後の個別言語問題を深追いしない。</li>
+        <li>初見の細かい用語を全部暗記しようとしない。10%枠だけで触れる。</li>
+        <li>科目Bは解説を読むだけにしない。必ず値を追って解く。</li>
+        <li>正解したが勘だった問題は「？」を付けて復習対象にする。</li>
+      </ul>
+    </section>
+
+    <section class="install-note"><b>48時間しかない場合：</b> 科目A模試1回 → 科目B模試1回 → 全誤答 → Bトレース10問 → もう一度30問、の順に絞ってください。</section>
+  `;
+  $("#crash30").onclick=startCrash30;
+  $("#btrace10").onclick=startBTrace10;
+  $("#crashA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
+  $("#crashB").onclick=()=>startQuiz(DATA.B,{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#crashReview").onclick=()=>startReviewQuiz(10);
+  $("#crashFlight").onclick=()=>view("flight");
+}
+
 function renderFlight(){
   main.innerHTML=`
     <h2>✈ 往復4時間プラン</h2>
@@ -379,7 +493,11 @@ function finishQuiz(){
     if(ans!==undefined){st.attempts++;if(ok)st.correct++;else st.wrong++;st.lastAnswer=ans;}
     st.uncertain=flag||(st.uncertain&&!ok);state.stats[q.id]=st;rows.push({q,ans,ok,flag});
   });
-  const title=cur.title,mode=cur.mode;state.current=null;saveState();renderResults(title,rows,correct,answered,flagged,mode);
+  const title=cur.title,mode=cur.mode;
+  state.history ||= [];
+  state.history.push({mode,title,correct,total:qs.length,answered,flagged,at:Date.now()});
+  state.history=state.history.slice(-80);
+  state.current=null;saveState();renderResults(title,rows,correct,answered,flagged,mode);
 }
 function renderResults(title,rows,correct,answered,flagged,mode){
   const total=rows.length,acc=pct(correct,total),cats={};
