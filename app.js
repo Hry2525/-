@@ -4,6 +4,7 @@
 const DATA = window.FE_DATA;
 const CRASH = window.FE_CRASH;
 const GUIDE = window.FE_GUIDE;
+const EXPLAIN = window.FE_EXPLAIN || {};
 const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[]), ...(CRASH.longB||[]), ...(CRASH.longBSec||[]), ...(CRASH.examBAlgo||[]), ...(CRASH.examBSec||[])];
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
@@ -782,39 +783,181 @@ function finishQuiz(){
   state.history=state.history.slice(-80);
   state.current=null;saveState();renderResults(title,rows,correct,answered,flagged,mode);
 }
-function memoryTip(q){
-  if(q.tip) return q.tip;
-  const t=(q.q||"")+" "+(q.cat||"");
-  if(t.includes("2分探索")) return "2分探索は low・high・mid の3つだけ追う。";
-  if(t.includes("再帰")||t.includes("fib")) return "再帰は下から小さい値を表にして戻すと崩れにくい。";
-  if(t.includes("木")||t.includes("inorder")||t.includes("postorder")) return "木の走査は、出力が再帰呼出しの前・間・後のどこにあるかを見る。";
-  if(t.includes("merge")) return "mergeは『どちらから1個取ったか』と、最後にどちらが残ったかを見る。";
-  if(t.includes("2次元")||t.includes("行列")) return "2次元配列は r[行,列] の添字を日本語で読み替える。";
-  if(q.cat==="ネットワーク") return "DNS=名前、DHCP=IP配布、ARP=IP→MAC、TCP=確実、UDP=速さで整理する。";
-  if(q.cat==="データベース") return "行への条件=WHERE、集計後の条件=HAVINGと分ける。";
-  if(q.cat==="情報セキュリティ"||q.cat==="セキュリティ") return "原因→守る対象→業務上の制約の順に読む。";
-  if(q.cat==="基礎理論") return "式を一気に解かず、変換・計算を1段ずつ分ける。";
-  return "正解だけでなく『なぜ他が違うか』を1行で言える状態を目標にする。";
+function coachFor(q){
+  if(EXPLAIN[q.id]) return EXPLAIN[q.id];
+  const text=((q.q||"")+" "+(q.code||"")+" "+(q.cat||"")).toLowerCase();
+
+  if(text.includes("cidr") || text.match(/\/2[4-9]|\/3[0-2]/)){
+    return {
+      focus:"CIDRの /数字 からホスト部のビット数を出し、1ブロックの大きさを求めます。ネットワークアドレスとブロードキャストアドレスはホストに使えません。",
+      steps:["/26ならホスト部は32-26=6ビット。","2^6=64個で1ブロック。","64刻みなので…0,64,128,192がネットワーク境界。","そのブロックの先頭がネットワーク、末尾がブロードキャスト。残りがホスト。"],
+      memory:"CIDRは『32から引く→2の何乗→その数で刻む』。/26なら 32-26=6 → 2^6=64 → 64刻み。",
+      trap:"範囲内でも先頭と末尾は端末に割り当てません。"
+    };
+  }
+  if(text.includes("キャッシュ") && text.includes("ヒット")){
+    return {
+      focus:"『ミス時にキャッシュ確認後、主記憶へ行く』という条件を見ます。キャッシュ時間はヒットでもミスでも最初に必ず発生します。",
+      steps:["まずキャッシュアクセス時間を1回分置く。","ミス率=1-ヒット率を求める。","追加で必要になる主記憶時間×ミス率を足す。"],
+      memory:"この型は『まずキャッシュ代を全員払う＋外れた人だけ主記憶代』。",
+      trap:"ヒット率×キャッシュ時間＋ミス率×主記憶時間だけにすると、ミス時の最初のキャッシュ確認時間を落とします。"
+    };
+  }
+  if(text.includes("raid")){
+    return {
+      focus:"RAID番号ではなく『何をどう冗長化しているか』を見ます。",
+      steps:["RAID0=分散だけ、冗長性なし。","RAID1=同じ内容を鏡のように複製。","RAID5=データ＋パリティを複数台へ分散。"],
+      memory:"0=速いだけ、1=鏡、5=分散パリティ。",
+      trap:"RAID5をミラーリングと混同しない。"
+    };
+  }
+  if(text.includes("lru")){
+    return {
+      focus:"ページの『最後に使われた時刻』だけを比較します。",
+      steps:["各ページが最後に参照された位置を確認する。","一番昔から使われていないページを選ぶ。"],
+      memory:"LRU = Least Recently Used = 最近いちばん使ってないものを捨てる。",
+      trap:"FIFOは『最初に入った』。LRUは『最後に使ったのが最も昔』。"
+    };
+  }
+  if(text.includes("having") || (text.includes("group by") && text.includes("where"))){
+    return {
+      focus:"条件をかけたい対象が『元の行』か『集計後のグループ』かを見ます。",
+      steps:["WHEREはGROUP BYより前に行を絞る。","AVGやCOUNTなどで集計した結果に条件を付けるならHAVING。"],
+      memory:"WHERE=集計前、HAVING=集計後。",
+      trap:"AVG(給与)のような集計値にWHEREを使わない。"
+    };
+  }
+  if(text.includes("acid") || text.includes("atomicity")){
+    return {
+      focus:"各英単語の意味と、問題文の症状を対応させます。",
+      steps:["Atomicity=全部やるか全部戻す。","Consistency=ルールを壊さない。","Isolation=同時実行を互いに見えにくくする。","Durability=commit後は障害があっても残る。"],
+      memory:"Aは All or Nothing、Dは Doneなら残る、と覚えると早い。",
+      trap:"『障害後も残る』はAtomicityではなくDurability。"
+    };
+  }
+  if(text.includes("デジタル署名") || text.includes("電子署名")){
+    return {
+      focus:"署名が守るのは『誰が作ったか』と『途中で変わっていないか』です。",
+      steps:["送信者側は秘密鍵で署名。","受信者側は公開鍵で検証。","検証できれば真正性、ハッシュ一致で完全性を確認できる。"],
+      memory:"署名=本人確認＋改ざん確認。秘密にするのは暗号化。",
+      trap:"署名だけでは内容は秘密になりません。機密性は別問題です。"
+    };
+  }
+  if(text.includes("損益分岐点")){
+    return {
+      focus:"1個売るごとに固定費回収へ回せる金額『限界利益=売価-変動費』を先に出します。",
+      steps:["売価-変動費=1個当たり限界利益。","固定費÷限界利益=損益分岐点数量。"],
+      memory:"『固定費を、1個で稼げる粗い利益で割る』。",
+      trap:"固定費÷売価ではありません。変動費を必ず引きます。"
+    };
+  }
+  if(text.includes("evm") || (text.includes("pv")&&text.includes("ev")&&text.includes("ac"))){
+    return {
+      focus:"EVを中心に式を作ります。",
+      steps:["CV=EV-AC。マイナスなら予算超過。","SV=EV-PV。マイナスなら進捗遅れ。"],
+      memory:"CVはCostだからAC、SVはScheduleだからPV。どちらもEVから引く。",
+      trap:"AC-EV、PV-EVと逆向きにしない。"
+    };
+  }
+  if(text.includes("dns") || text.includes("dhcp") || text.includes("arp") || text.includes("napt")){
+    return {
+      focus:"ネットワーク用語は『何を何に変える/配るのか』だけ見ます。",
+      steps:["DNS=名前→IP。","DHCP=端末へIP設定を配る。","ARP=同一LANでIP→MAC。","NAPT=複数の内部IPをポート番号込みで外部IPへ変換。"],
+      memory:"DNS=電話帳、DHCP=住所配り、ARP=近所の表札探し、NAPT=マンションの部屋番号付き住所変換。",
+      trap:"どれも『アドレスっぽい話』なので役割を混ぜない。"
+    };
+  }
+  if(text.includes("スタック") || text.includes("push") || text.includes("pop")){
+    return {
+      focus:"スタックの中身を、操作ごとに縦積みとして書きます。",
+      steps:["push=一番上に置く。","pop=一番上から取る。","演算子がある問題は、取り出した順と左右オペランドに注意する。"],
+      memory:"スタック=皿の山。最後に置いた皿から取る=LIFO。",
+      trap:"キューのFIFOと逆。減算・除算では左右も逆にしない。"
+    };
+  }
+  if(text.includes("キュー") || text.includes("enqueue") || text.includes("dequeue") || text.includes("幅優先")){
+    return {
+      focus:"キューの先頭と末尾だけを追います。",
+      steps:["enqueue=末尾へ追加。","dequeue=先頭から取り出す。","BFSでは発見した順にキューへ入るので、近い頂点から処理される。"],
+      memory:"キュー=レジ待ち。先に並んだ人から出る=FIFO。BFSも同じ。",
+      trap:"DFSのように1本を奥まで追わない。"
+    };
+  }
+  if(text.includes("深さ優先") || text.includes("dfs(")){
+    return {
+      focus:"現在位置から未訪問の隣接頂点へ、行けるだけ奥まで進みます。",
+      steps:["最小番号など問題文指定の順で次の頂点へ進む。","行き止まりになったら1つ前へ戻る。","未訪問があればまた奥へ進む。"],
+      memory:"DFS=迷路で片方の道を行けるところまで行って、ダメなら戻る。再帰/スタック。",
+      trap:"BFSのように同じ距離の頂点を先に全部処理しない。"
+    };
+  }
+  if(text.includes("選択ソート")){
+    return {
+      focus:"外側ループ1回につき『残り範囲の最小値を1個だけ確定』させます。",
+      steps:["i位置より右から最小値を探す。","その最小値とa[i]を交換する。","iが1増えるたび左側が確定する。"],
+      memory:"選択ソート=『一番小さい人を選んで前へ』を繰り返す。",
+      trap:"1回の外側ループで配列全体が整列するとは限りません。"
+    };
+  }
+  if(text.includes("挿入ソート")){
+    return {
+      focus:"iより左側は既に整列済み、と考えます。keyを左側の正しい位置へ差し込みます。",
+      steps:["key=a[i]を一旦退避。","keyより大きい値を右へ1つずつずらす。","空いた位置へkeyを入れる。"],
+      memory:"挿入ソート=トランプを手札の正しい位置へ差し込む。",
+      trap:"交換を繰り返すのではなく、大きい要素を右へずらして最後にkeyを入れる型もあります。"
+    };
+  }
+  if(text.includes("クイックソート") || text.includes("pivot")){
+    return {
+      focus:"基準値pivotより小さい/大きいを分ける処理だけ見ます。",
+      steps:["pivotを確認。","条件を満たす要素を左側領域へ集める。","最後にpivotを境界位置へ置く。"],
+      memory:"クイックソート=基準線を1本引いて、小さい組と大きい組に分ける。",
+      trap:"分割1回で完全整列するとは限りません。"
+    };
+  }
+  if(text.includes("フィボ") || text.includes("fib(")){
+    return {
+      focus:"再帰木を全部書かず、f(0),f(1)から順に小さい値を表にします。",
+      steps:["f(0)=0,f(1)=1。","f(2)=1、f(3)=2、f(4)=3…と足していく。","求めるnまで表を伸ばす。"],
+      memory:"フィボナッチは 0,1,1,2,3,5,8,13 をまず言えるようにする。",
+      trap:"呼出し回数と関数の戻り値は別です。"
+    };
+  }
+  if(text.includes("再帰")){
+    return {
+      focus:"終了条件と、nが次にどう小さくなるかを先に確認します。",
+      steps:["ベースケースの戻り値を書く。","n→n-1やn-2など、次の呼出しだけ展開する。","一番小さい呼出しまで到達したら下から戻り値を計算する。"],
+      memory:"再帰=『小さい自分に仕事を渡して、答えが返ってきたら計算』。",
+      trap:"上から暗算だけで追うと途中で崩れやすいので、呼出しと戻りを分ける。"
+    };
+  }
+  if(text.includes("連結リスト") || text.includes("next[")){
+    return {
+      focus:"値ではなく『矢印nextがどこを指すか』を図にします。",
+      steps:["現在のつながりを 1→3→2 のように書く。","挿入なら 新ノード→次 を先に設定してから 前ノード→新ノード。","削除なら前ノードから削除対象の次へ1個飛ばしてつなぐ。"],
+      memory:"リスト問題は数字の計算ではなく矢印問題。nextを矢印として描く。",
+      trap:"data配列の並び順と、nextでたどる論理順序は同じとは限りません。"
+    };
+  }
+  if(text.includes("ランレングス")){
+    return {
+      focus:"同じ文字が『全体で何個』ではなく『連続して何個』かを塊ごとに見ます。",
+      steps:["文字が変わるところに区切り線を入れる。","各塊の文字と個数を数える。","最後の塊をループ後に出力するコードか確認する。"],
+      memory:"ランレングス=AAAAをA4にする圧縮。",
+      trap:"離れた場所に同じ文字があっても別の塊です。"
+    };
+  }
+
+  return {
+    focus:"問題文の中で、正解を決める条件・式・更新行を1つ特定します。",
+    steps:[q.exp||"解説を確認する。","選択肢を正解条件と1つずつ照合する。"],
+    memory:"この問題は答えそのものより『正解を決めた1行』を覚える。",
+    trap:"似た用語や途中値を選ばないよう、最終的に何を聞かれているかを確認する。"
+  };
 }
-function solveGuide(q){
-  if(q.strategy) return q.strategy;
-  if(q.cat==="アルゴリズム・プログラミング"||q.cat==="アルゴリズム"){
-    return "設問を見る → 必要な変数だけ拾う → 値の変化を紙に書く → 選択肢と照合する。";
-  }
-  if(q.cat==="情報セキュリティ"||q.cat==="セキュリティ"){
-    return "事故・弱点を1つに絞り、その原因へ直接効く対策を選ぶ。";
-  }
-  if((q.q||"").match(/何秒|何%|何個|何台|何ビット|いくつ|値は/)){
-    return "単位と公式を先に書き、与えられた数値だけ代入する。途中式を1行残す。";
-  }
-  return "キーワードを1つ決め、各選択肢がその定義に合うかを消去法で確認する。";
-}
-function trapTip(q){
-  if(q.trap) return q.trap;
-  if(q.cat==="アルゴリズム・プログラミング"||q.cat==="アルゴリズム") return "途中状態と最終状態、添字の開始位置、≦と＜を取り違えない。";
-  if(q.cat==="ネットワーク") return "OSI層・役割・ポート番号の似た用語を混同しない。";
-  if(q.cat==="情報セキュリティ"||q.cat==="セキュリティ") return "『一番安全そう』ではなく、問題文の制約を満たす最適策を選ぶ。";
-  return "『必ず』『完全に』『だけ』など極端な選択肢は根拠を確認する。";
+function traceTableHtml(trace){
+  if(!trace || !trace.headers || !trace.rows) return "";
+  return `<div class="trace-wrap"><div class="trace-title">実際にこう追う</div><table class="trace-table"><thead><tr>${trace.headers.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${trace.rows.map(row=>`<tr>${row.map(v=>`<td>${esc(String(v))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderResults(title,rows,correct,answered,flagged,mode){
@@ -828,7 +971,7 @@ function renderResults(title,rows,correct,answered,flagged,mode){
       <div class="result-grid"><div class="result-box"><b>${rows.filter(r=>!r.ok).length}</b><div class="muted">誤答/未回答</div></div><div class="result-box"><b>${flagged}</b><div class="muted">迷った問題</div></div></div>
     </section>
     <section class="card"><h3>分野別</h3>${Object.entries(cats).map(([cat,x])=>`<div class="category-row"><div style="display:flex;justify-content:space-between"><b>${esc(cat)}</b><b>${x.c}/${x.n}</b></div><div class="bar"><span style="width:${pct(x.c,x.n)}%"></span></div></div>`).join("")}</section>
-    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${r.ans===undefined?"未回答":String.fromCharCode(65+r.ans)}</b>　正解：<b>${String.fromCharCode(65+r.q.a)}</b></p><div class="explain"><b>解説</b><div>${esc(r.q.exp||"")}</div></div><div class="solve-guide"><b>解き方</b><div>${esc(solveGuide(r.q))}</div></div><div class="memory-tip"><b>こう覚える</b><div>${esc(memoryTip(r.q))}</div></div><div class="trap-tip"><b>ひっかけポイント</b><div>${esc(trapTip(r.q))}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
+    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${r.ans===undefined?"未回答":String.fromCharCode(65+r.ans)}</b>　正解：<b>${String.fromCharCode(65+r.q.a)}</b></p><div class="focus-box"><b>この問題ではここを見る</b><div>${esc(coachFor(r.q).focus)}</div></div><div class="solve-guide"><b>実際の解き方</b><ol>${coachFor(r.q).steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></div>${traceTableHtml(coachFor(r.q).trace)}<div class="explain"><b>なぜこの答えになるか</b><div>${esc(r.q.exp||"")}</div></div><div class="memory-tip"><b>こう覚えると楽</b><div>${esc(coachFor(r.q).memory)}</div></div><div class="trap-tip"><b>本番のひっかけ</b><div>${esc(coachFor(r.q).trap)}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
     <div class="actions"><button class="btn primary" id="retryWrong">誤答・？を解く</button><button class="btn ghost" id="backHome">ホーム</button></div>`;
   $("#backHome").onclick=()=>view("home");
   $("#retryWrong").onclick=()=>{const pool=rows.filter(r=>!r.ok||r.flag).map(r=>r.q);if(!pool.length){toast("復習対象はありません");return;}startQuiz(pool,{title:"このセットの復習",mode:"retry",minutes:0,exam:false});};
