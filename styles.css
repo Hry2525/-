@@ -145,3 +145,17 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:
 .memory-tip{background:#effaf3;border:1px solid #b9e3c8}
 .trap-tip{background:#fff7e8;border:1px solid #f0d39a}
 .solve-guide b,.memory-tip b,.trap-tip b{display:block;margin-bottom:4px}
+
+.focus-box,.solve-guide,.memory-tip,.trap-tip{border-radius:12px;padding:13px;margin-top:10px;font-size:14px;line-height:1.65}
+.focus-box{background:#f3f0ff;border:1px solid #d4c9ff}
+.solve-guide{background:#eef6ff;border:1px solid #c7dcff}
+.memory-tip{background:#effaf3;border:1px solid #b9e3c8}
+.trap-tip{background:#fff7e8;border:1px solid #f0d39a}
+.focus-box b,.solve-guide b,.memory-tip b,.trap-tip b{display:block;margin-bottom:6px}
+.solve-guide ol{margin:6px 0 0 20px;padding:0}
+.solve-guide li{margin:5px 0}
+.trace-wrap{overflow-x:auto;margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
+.trace-title{font-weight:850;margin-bottom:7px}
+.trace-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+.trace-table th,.trace-table td{border:1px solid #dfe5ee;padding:7px;text-align:center}
+.trace-table th{background:#f4f6f9}
