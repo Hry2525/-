@@ -4,7 +4,7 @@
 const DATA = window.FE_DATA;
 const CRASH = window.FE_CRASH;
 const GUIDE = window.FE_GUIDE;
-const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[]), ...(CRASH.longB||[]), ...(CRASH.longBSec||[])];
+const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[]), ...(CRASH.longB||[]), ...(CRASH.longBSec||[]), ...(CRASH.examBAlgo||[]), ...(CRASH.examBSec||[])];
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 const main = $("#main");
@@ -223,7 +223,7 @@ function renderHome(){
         <div class="kpi"><b>${DATA.P.length}</b><small>IPA公開</small></div>
       </div>
       <p class="muted" style="font-size:13px">問題・解説・進捗は端末内に保存。通信なしで使用できます。</p>
-      <p class="muted" style="font-size:13px"><b>直前対策を含む総問題バンク：168問</b>（現行形式・公開問題・旧午前頻出・初見用語・Bトレース・セキュリティケース）</p>
+      <p class="muted" style="font-size:13px"><b>総問題バンク：${ALL.length}問</b>（本番形式・公開問題・旧午前頻出・長文B・セキュリティケース）</p>
     </section>
     <section class="install-note">
       <b>搭乗前に確認：</b> Safariで開き「ホーム画面に追加」→この画面右上が<b>オフライン準備完了</b>になってから機内モードへ。
@@ -565,14 +565,14 @@ function buildMockA(){
   return [...tech,...mgmt,...strat];
 }
 function buildMockB(){
-  const algo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace];
-  const sec=[...DATA.B.filter(q=>q.cat==="情報セキュリティ"),...(CRASH.security||[])];
+  const algo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace,...(CRASH.examBAlgo||[])];
+  const sec=[...DATA.B.filter(q=>q.cat==="情報セキュリティ"),...(CRASH.security||[]),...(CRASH.examBSec||[])];
   return [...pickAdaptive(algo,16),...pickAdaptive(sec,4)];
 }
 function buildMockBReal(){
   const basicAlgo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace];
-  const longAlgo=[...(CRASH.longB||[])];
-  const longSec=[...(CRASH.longBSec||[])];
+  const longAlgo=[...(CRASH.longB||[]),...(CRASH.examBAlgo||[])];
+  const longSec=[...(CRASH.longBSec||[]),...(CRASH.examBSec||[])];
   const first=pickAdaptive(basicAlgo,6);
   const later=pickAdaptive(longAlgo,10);
   const sec=pickAdaptive(longSec,4);
@@ -776,6 +776,41 @@ function finishQuiz(){
   state.history=state.history.slice(-80);
   state.current=null;saveState();renderResults(title,rows,correct,answered,flagged,mode);
 }
+function memoryTip(q){
+  if(q.tip) return q.tip;
+  const t=(q.q||"")+" "+(q.cat||"");
+  if(t.includes("2分探索")) return "2分探索は low・high・mid の3つだけ追う。";
+  if(t.includes("再帰")||t.includes("fib")) return "再帰は下から小さい値を表にして戻すと崩れにくい。";
+  if(t.includes("木")||t.includes("inorder")||t.includes("postorder")) return "木の走査は、出力が再帰呼出しの前・間・後のどこにあるかを見る。";
+  if(t.includes("merge")) return "mergeは『どちらから1個取ったか』と、最後にどちらが残ったかを見る。";
+  if(t.includes("2次元")||t.includes("行列")) return "2次元配列は r[行,列] の添字を日本語で読み替える。";
+  if(q.cat==="ネットワーク") return "DNS=名前、DHCP=IP配布、ARP=IP→MAC、TCP=確実、UDP=速さで整理する。";
+  if(q.cat==="データベース") return "行への条件=WHERE、集計後の条件=HAVINGと分ける。";
+  if(q.cat==="情報セキュリティ"||q.cat==="セキュリティ") return "原因→守る対象→業務上の制約の順に読む。";
+  if(q.cat==="基礎理論") return "式を一気に解かず、変換・計算を1段ずつ分ける。";
+  return "正解だけでなく『なぜ他が違うか』を1行で言える状態を目標にする。";
+}
+function solveGuide(q){
+  if(q.strategy) return q.strategy;
+  if(q.cat==="アルゴリズム・プログラミング"||q.cat==="アルゴリズム"){
+    return "設問を見る → 必要な変数だけ拾う → 値の変化を紙に書く → 選択肢と照合する。";
+  }
+  if(q.cat==="情報セキュリティ"||q.cat==="セキュリティ"){
+    return "事故・弱点を1つに絞り、その原因へ直接効く対策を選ぶ。";
+  }
+  if((q.q||"").match(/何秒|何%|何個|何台|何ビット|いくつ|値は/)){
+    return "単位と公式を先に書き、与えられた数値だけ代入する。途中式を1行残す。";
+  }
+  return "キーワードを1つ決め、各選択肢がその定義に合うかを消去法で確認する。";
+}
+function trapTip(q){
+  if(q.trap) return q.trap;
+  if(q.cat==="アルゴリズム・プログラミング"||q.cat==="アルゴリズム") return "途中状態と最終状態、添字の開始位置、≦と＜を取り違えない。";
+  if(q.cat==="ネットワーク") return "OSI層・役割・ポート番号の似た用語を混同しない。";
+  if(q.cat==="情報セキュリティ"||q.cat==="セキュリティ") return "『一番安全そう』ではなく、問題文の制約を満たす最適策を選ぶ。";
+  return "『必ず』『完全に』『だけ』など極端な選択肢は根拠を確認する。";
+}
+
 function renderResults(title,rows,correct,answered,flagged,mode){
   const total=rows.length,acc=pct(correct,total),cats={};
   rows.forEach(r=>{cats[r.q.cat] ||= {n:0,c:0};cats[r.q.cat].n++;if(r.ok)cats[r.q.cat].c++;});
@@ -787,7 +822,7 @@ function renderResults(title,rows,correct,answered,flagged,mode){
       <div class="result-grid"><div class="result-box"><b>${rows.filter(r=>!r.ok).length}</b><div class="muted">誤答/未回答</div></div><div class="result-box"><b>${flagged}</b><div class="muted">迷った問題</div></div></div>
     </section>
     <section class="card"><h3>分野別</h3>${Object.entries(cats).map(([cat,x])=>`<div class="category-row"><div style="display:flex;justify-content:space-between"><b>${esc(cat)}</b><b>${x.c}/${x.n}</b></div><div class="bar"><span style="width:${pct(x.c,x.n)}%"></span></div></div>`).join("")}</section>
-    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${r.ans===undefined?"未回答":String.fromCharCode(65+r.ans)}</b>　正解：<b>${String.fromCharCode(65+r.q.a)}</b></p><div class="explain">${esc(r.q.exp||"")}</div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
+    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${r.ans===undefined?"未回答":String.fromCharCode(65+r.ans)}</b>　正解：<b>${String.fromCharCode(65+r.q.a)}</b></p><div class="explain"><b>解説</b><div>${esc(r.q.exp||"")}</div></div><div class="solve-guide"><b>解き方</b><div>${esc(solveGuide(r.q))}</div></div><div class="memory-tip"><b>こう覚える</b><div>${esc(memoryTip(r.q))}</div></div><div class="trap-tip"><b>ひっかけポイント</b><div>${esc(trapTip(r.q))}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
     <div class="actions"><button class="btn primary" id="retryWrong">誤答・？を解く</button><button class="btn ghost" id="backHome">ホーム</button></div>`;
   $("#backHome").onclick=()=>view("home");
   $("#retryWrong").onclick=()=>{const pool=rows.filter(r=>!r.ok||r.flag).map(r=>r.q);if(!pool.length){toast("復習対象はありません");return;}startQuiz(pool,{title:"このセットの復習",mode:"retry",minutes:0,exam:false});};
