@@ -137,3 +137,5 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:
   .q-text{font-size:16px;line-height:1.72}
   .code{font-size:12px;line-height:1.55}
 }
+
+.rescue-note{background:#fff8e8;border:1px solid #f0d28a;border-radius:12px;padding:12px}
