@@ -130,3 +130,10 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:
 .daily-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #edf0f4}
 .daily-row:last-child{border-bottom:0}
 .daily-score{font-size:20px;font-weight:900;color:var(--blue)}
+
+.question-card .q-text{word-break:normal}
+@media(max-width:520px){
+  .question-card{padding:15px}
+  .q-text{font-size:16px;line-height:1.72}
+  .code{font-size:12px;line-height:1.55}
+}
