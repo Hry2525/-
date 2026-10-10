@@ -247,6 +247,7 @@ function pickAdaptive(pool,n){
       if(s.uncertain) score+=3;
       if(weakCats.has(q.cat)) score+=2;
       if(!s.attempts) score+=1;
+      if(q.src || q.id.startsWith("P-") || q.id.startsWith("O")) score+=0.8;
       return {q,score};
     })
     .sort((a,b)=>b.score-a.score)
@@ -644,11 +645,16 @@ function renderGuide(){
 function renderMock(){
   main.innerHTML=`
     <h2>本番形式</h2>
-    <section class="card"><h3>科目A</h3><p>60問・90分。テクノロジ41＋マネジメント7＋ストラテジ12で毎回組み直します。</p><button class="btn primary full" id="mockA">仕様準拠60問模試を開始</button></section>
-    <section class="card"><h3>科目B</h3><p>20問・100分想定。アルゴリズム16問＋情報セキュリティ4問。</p><button class="btn primary full" id="mockB">20問模試を開始</button></section>
-    <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">図表依存が少ない公開問題をオフライン用に収録。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
+    <section class="card"><h3>科目A ランダム模試</h3><p>60問・90分。テクノロジ41＋マネジメント7＋ストラテジ12で毎回組み直します。</p><button class="btn primary full" id="mockA">仕様準拠60問模試を開始</button></section>
+    <section class="card"><h3>科目A 追加固定セット</h3><p>今回追加した本番形式60問を、そのまま1セットで繰り返せます。</p><button class="btn secondary full" id="mockAPlus">追加60問セットを開始</button></section>
+    <section class="card"><h3>科目B ランダム模試</h3><p>20問・100分。短中問＋長文アルゴリズム16問、情報セキュリティ4問。本番難度を維持します。</p><button class="btn primary full" id="mockB">本番長文20問模試を開始</button></section>
+    <section class="card"><h3>科目B 追加固定セット</h3><p>本番形式20問×2セット。正解を覚えるまで同じセットを繰り返してもOKです。</p><div class="actions"><button class="btn secondary" id="mockBPlus1">セット①</button><button class="btn secondary" id="mockBPlus2">セット②</button></div></section>
+    <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">公開問題は出典を付けて収録。実際の出題論点の確認用です。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
   $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
+  $("#mockAPlus").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AX")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"科目A 追加60問セット",mode:"mockA",minutes:90,exam:true});
   $("#mockB").onclick=()=>startQuiz(buildMockBReal(),{title:"科目B 本番長文20問",mode:"mockB",minutes:100,exam:true});
+  $("#mockBPlus1").onclick=()=>startQuiz([...CRASH.examBAlgo.filter(q=>q.id.startsWith("BX")).sort((a,b)=>a.id.localeCompare(b.id)),...CRASH.examBSec.filter(q=>q.id.startsWith("BX")).sort((a,b)=>a.id.localeCompare(b.id))],{title:"科目B 追加セット①",mode:"mockB",minutes:100,exam:true});
+  $("#mockBPlus2").onclick=()=>startQuiz([...CRASH.examBAlgo.filter(q=>q.id.startsWith("BY")).sort((a,b)=>a.id.localeCompare(b.id)),...CRASH.examBSec.filter(q=>q.id.startsWith("BY")).sort((a,b)=>a.id.localeCompare(b.id))],{title:"科目B 追加セット②",mode:"mockB",minutes:100,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
 }
 function reviewPool(filter){
