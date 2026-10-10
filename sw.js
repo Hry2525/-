@@ -1,4 +1,4 @@
-const CACHE = "fe-pwa-v7-20261001";
+const CACHE = "fe-pwa-v8-20261010";
 const ASSETS = [
   "./",
   "./index.html",
@@ -19,6 +19,7 @@ const ASSETS = [
   "./crash-terms.js",
   "./crash-btrace.js",
   "./crash-security.js",
+  "./crash-b-long.js",
   "./guide-data.js",
   "./data-p-1.js",
   "./data-p-2.js",
