@@ -139,3 +139,9 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:
 }
 
 .rescue-note{background:#fff8e8;border:1px solid #f0d28a;border-radius:12px;padding:12px}
+
+.solve-guide,.memory-tip,.trap-tip{border-radius:12px;padding:12px;margin-top:10px;font-size:14px}
+.solve-guide{background:#eef6ff;border:1px solid #c7dcff}
+.memory-tip{background:#effaf3;border:1px solid #b9e3c8}
+.trap-tip{background:#fff7e8;border:1px solid #f0d39a}
+.solve-guide b,.memory-tip b,.trap-tip b{display:block;margin-bottom:4px}
