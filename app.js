@@ -127,6 +127,7 @@ function readinessModel(){
     {name:"科目B模試",value:b,weight:35},
     {name:"70/20/10",value:crash,weight:20},
     {name:"Bトレース",value:trace,weight:10},
+    {name:"B救済",value:avgPct(recentMode("bRescue",2)),weight:5},
     {name:"網羅度",value:Math.min(100,Math.round(coverage/60*100)),weight:5}
   ];
   const available=components.filter(x=>x.value!==null);
@@ -283,6 +284,39 @@ function startCrash30(){
 function startBTrace10(){
   startQuiz(pickAdaptive(CRASH.btrace,10),{title:"科目B トレース10問",mode:"btrace10",minutes:45,exam:false});
 }
+function buildBRescue(){
+  const ids=["C-B10","C-B02","C-B05","C-B06","C-B17","LB01","LB02","LB03","LB06","LB11"];
+  return ids.map(id=>ALL.find(q=>q.id===id)).filter(Boolean);
+}
+function renderBRescueIntro(){
+  main.innerHTML=`
+    <h2>🛟 科目B救済モード</h2>
+    <section class="card hero">
+      <div class="muted">今回の3/10から逆算</div>
+      <h2 style="margin-top:4px">全部やり直さず、7パターンだけ直す</h2>
+      <p class="muted">本番20問すべてが今回の10問と同じ難度ではありません。まず「読めば取れる問題」を増やします。</p>
+      <button class="btn primary full" id="rescueStart">救済10問を開始</button>
+    </section>
+
+    <section class="card">
+      <h3>今回の優先順位</h3>
+      <div class="day-row"><b>①</b><span><b>2分探索</b>：low / high / mid の3つだけ表に書く。</span></div>
+      <div class="day-row"><b>②</b><span><b>merge</b>：主ループ終了後「どちらが何個残ったか」を見る。</span></div>
+      <div class="day-row"><b>③</b><span><b>2次元配列</b>：r[j,i]なら行列を入れ替える。式を日本語に直す。</span></div>
+      <div class="day-row"><b>④</b><span><b>木の走査</b>：先行=根左右、中間=左根右、後行=左右根。</span></div>
+      <div class="day-row"><b>⑤</b><span><b>DP</b>：配列全体を追わず「今回更新される添字」だけ追う。</span></div>
+      <div class="day-row"><b>⑥</b><span><b>数理/類似度</b>：問題文の式へ数字を代入するだけ。意味を全部理解しなくてよい。</span></div>
+      <div class="day-row"><b>⑦</b><span><b>長文読解</b>：設問→空欄前後→必要な本文、の順で読む。</span></div>
+    </section>
+
+    <section class="card">
+      <h3>今日の目標</h3>
+      <p><b>救済10問で7/10以上</b>を目標にします。達成したら本番長文10問へ戻ります。</p>
+      <p class="muted">3/10からいきなり20問模試へ戻るより、こちらの方が火曜日までの伸びが速いです。</p>
+    </section>`;
+  $("#rescueStart").onclick=()=>startQuiz(buildBRescue(),{title:"科目B 救済10問",mode:"bRescue",minutes:45,exam:false});
+}
+
 function renderCrash(){
   const r=readiness();
   main.innerHTML=`
@@ -296,7 +330,8 @@ function renderCrash(){
         <div class="kpi"><b>10%</b><small>初見用語</small></div>
       </div>
       <div class="actions"><button class="btn primary" id="crash30">今日の30問</button><button class="btn ghost" id="btrace10">Bトレース10問</button></div>
-      <div class="actions one"><button class="btn secondary full" id="longB10">B本番長文10問</button></div>
+      <div class="actions one"><button class="btn secondary full" id="rescueB">🛟 科目B救済モード</button></div>
+      <div class="actions one"><button class="btn ghost full" id="longB10">B本番長文10問</button></div>
     </section>
 
     <section class="card">
@@ -335,6 +370,7 @@ function renderCrash(){
   `;
   $("#crash30").onclick=startCrash30;
   $("#btrace10").onclick=startBTrace10;
+  $("#rescueB").onclick=renderBRescueIntro;
   $("#longB10").onclick=()=>startQuiz(pickAdaptive([...(CRASH.longB||[]),...(CRASH.longBSec||[])],10),{title:"科目B 本番長文10問",mode:"bLong10",minutes:50,exam:false});
   $("#crashA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
   $("#crashB").onclick=()=>startQuiz(buildMockBReal(),{title:"科目B 本番長文20問",mode:"mockB",minutes:100,exam:true});
