@@ -4,7 +4,7 @@
 const DATA = window.FE_DATA;
 const CRASH = window.FE_CRASH;
 const GUIDE = window.FE_GUIDE;
-const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[])];
+const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[]), ...(CRASH.longB||[]), ...(CRASH.longBSec||[])];
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 const main = $("#main");
@@ -296,6 +296,7 @@ function renderCrash(){
         <div class="kpi"><b>10%</b><small>初見用語</small></div>
       </div>
       <div class="actions"><button class="btn primary" id="crash30">今日の30問</button><button class="btn ghost" id="btrace10">Bトレース10問</button></div>
+      <div class="actions one"><button class="btn secondary full" id="longB10">B本番長文10問</button></div>
     </section>
 
     <section class="card">
@@ -308,13 +309,10 @@ function renderCrash(){
 
     <section class="card">
       <h3>7日プラン</h3>
-      <div class="day-row"><b>Day 1</b><span>70/20/10 30問 → Bトレース10問。弱点を確定。</span></div>
-      <div class="day-row"><b>Day 2</b><span>30問 → 誤答だけ再挑戦。新規学習より穴埋め。</span></div>
-      <div class="day-row"><b>Day 3</b><span>30問 → Bトレース10問。再帰・二重ループ・配列を重点。</span></div>
-      <div class="day-row"><b>Day 4</b><span>科目A 60問を90分で。本番ペース確認。</span></div>
-      <div class="day-row"><b>Day 5</b><span>科目B 20問を100分で。終了後に誤答を全復習。</span></div>
-      <div class="day-row"><b>Day 6</b><span>本番通し：A 90分 → 休憩 → B 100分。飛行機4時間にも最適。</span></div>
-      <div class="day-row"><b>Day 7</b><span>30問＋誤答だけ。新しい難問には手を広げない。</span></div>
+      <div class="day-row"><b>土曜</b><span>B本番長文10問 → 解説復習。短問より長文の読み方に慣れる。</span></div>
+      <div class="day-row"><b>日曜</b><span>科目B 本番長文20問を100分 → 全誤答復習 → ネットワーク10問。</span></div>
+      <div class="day-row"><b>月曜</b><span>科目B 本番長文20問をもう1回 → 科目A 30〜60問。新分野には手を広げない。</span></div>
+      <div class="day-row"><b>火曜</b><span>試験当日は軽い確認だけ。Bの長文を新しく解かず、誤答メモと頻出論点を確認。</span></div>
     </section>
 
     <section class="card">
@@ -337,8 +335,9 @@ function renderCrash(){
   `;
   $("#crash30").onclick=startCrash30;
   $("#btrace10").onclick=startBTrace10;
+  $("#longB10").onclick=()=>startQuiz(pickAdaptive([...(CRASH.longB||[]),...(CRASH.longBSec||[])],10),{title:"科目B 本番長文10問",mode:"bLong10",minutes:50,exam:false});
   $("#crashA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
-  $("#crashB").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#crashB").onclick=()=>startQuiz(buildMockBReal(),{title:"科目B 本番長文20問",mode:"mockB",minutes:100,exam:true});
   $("#crashReview").onclick=()=>startReviewQuiz(10);
   $("#crashFlight").onclick=()=>view("flight");
 }
@@ -407,7 +406,7 @@ function renderDojo(){
     const p=filterByHistory(ALL,"wrong"); if(!p.length){toast("誤答履歴がありません");return;}
     startQuiz(pickAdaptive(p,10),{title:"誤答10問",mode:"dojo",minutes:0,exam:false});
   };
-  $("#dojoB").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#dojoB").onclick=()=>startQuiz(buildMockBReal(),{title:"科目B 本番長文20問",mode:"mockB",minutes:100,exam:true});
 }
 
 function renderAnalytics(){
@@ -489,7 +488,7 @@ function renderFlight(){
   $("#out1").onclick=()=>startWeakQuiz(10,15);
   $("#out2").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
   $("#out3").onclick=()=>startReviewQuiz(15,15);
-  $("#ret1").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#ret1").onclick=()=>startQuiz(buildMockBReal(),{title:"科目B 本番長文20問",mode:"mockB",minutes:100,exam:true});
   $("#ret2").onclick=()=>startReviewQuiz(20,20,"B");
 }
 function renderWeak(){
@@ -533,6 +532,15 @@ function buildMockB(){
   const algo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace];
   const sec=[...DATA.B.filter(q=>q.cat==="情報セキュリティ"),...(CRASH.security||[])];
   return [...pickAdaptive(algo,16),...pickAdaptive(sec,4)];
+}
+function buildMockBReal(){
+  const basicAlgo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace];
+  const longAlgo=[...(CRASH.longB||[])];
+  const longSec=[...(CRASH.longBSec||[])];
+  const first=pickAdaptive(basicAlgo,6);
+  const later=pickAdaptive(longAlgo,10);
+  const sec=pickAdaptive(longSec,4);
+  return [...first,...later,...sec];
 }
 function renderGuide(){
   main.innerHTML=`
@@ -604,7 +612,7 @@ function renderMock(){
     <section class="card"><h3>科目B</h3><p>20問・100分想定。アルゴリズム16問＋情報セキュリティ4問。</p><button class="btn primary full" id="mockB">20問模試を開始</button></section>
     <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">図表依存が少ない公開問題をオフライン用に収録。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
   $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
-  $("#mockB").onclick=()=>startQuiz(buildMockB(),{title:"科目B 20問模試",mode:"mockB",minutes:100,exam:true});
+  $("#mockB").onclick=()=>startQuiz(buildMockBReal(),{title:"科目B 本番長文20問",mode:"mockB",minutes:100,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
 }
 function reviewPool(filter){
