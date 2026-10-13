@@ -60,6 +60,7 @@ function answerLabel(ans){
 function statsFor(q){
   return state.stats[q.id] || {attempts:0,correct:0,wrong:0,uncertain:false,lastAnswer:null};
 }
+function unseenCount(pool){ return [...new Map(pool.map(q=>[q.id,q])).values()].filter(q=>!statsFor(q).attempts).length; }
 function overall(){
   const vals=Object.values(state.stats);
   const attempts=vals.reduce((s,x)=>s+x.attempts,0);
@@ -252,6 +253,11 @@ function renderHome(){
       </div>
       <p class="muted" style="font-size:13px">問題・解説・進捗は端末内に保存。通信なしで使用できます。</p>
       <p class="muted" style="font-size:13px"><b>総問題バンク：${ALL.length}問</b>（FE＋AWS）。AWS：${AWS.length}問 / FE B穴埋め：${(CRASH.gapBAlgo||[]).length+(CRASH.gapBSec||[]).length}問。</p>
+      <div class="kpi-row">
+        <div class="kpi"><b>${unseenCount(DATA.A)}</b><small>A 未回答</small></div>
+        <div class="kpi"><b>${unseenCount(feBPool())}</b><small>B 未回答</small></div>
+        <div class="kpi"><b>${unseenCount(AWS)}</b><small>AWS 未回答</small></div>
+      </div>
     </section>
     <section class="install-note">
       <b>搭乗前に確認：</b> Safariで開き「ホーム画面に追加」→この画面右上が<b>オフライン準備完了</b>になってから機内モードへ。
