@@ -61,6 +61,34 @@ function statsFor(q){
   return state.stats[q.id] || {attempts:0,correct:0,wrong:0,uncertain:false,lastAnswer:null};
 }
 function unseenCount(pool){ return [...new Map(pool.map(q=>[q.id,q])).values()].filter(q=>!statsFor(q).attempts).length; }
+function dueQuestions(pool){
+  const now=Date.now();
+  return [...new Map(pool.map(q=>[q.id,q])).values()].filter(q=>{
+    const s=statsFor(q);
+    return s.attempts>0 && (s.dueAt||0)<=now && (s.wrong>0 || (s.streak||0)<4);
+  }).sort((a,b)=>(statsFor(a).dueAt||0)-(statsFor(b).dueAt||0) || statsFor(b).wrong-statsFor(a).wrong);
+}
+function dueCount(pool){ return dueQuestions(pool).length; }
+function scheduleReview(st,ok,now){
+  st.streak = ok ? (st.streak||0)+1 : 0;
+  st.lastAt = now;
+  const H=3600000,D=24*H;
+  if(!ok) st.dueAt = now + 8*H;
+  else if(st.streak===1) st.dueAt = now + D;
+  else if(st.streak===2) st.dueAt = now + 3*D;
+  else if(st.streak===3) st.dueAt = now + 7*D;
+  else st.dueAt = now + 14*D;
+}
+function pickNewAndDue(pool,n,newRatio=.7){
+  const uniq=[...new Map(pool.map(q=>[q.id,q])).values()];
+  const newN=Math.min(Math.round(n*newRatio),uniq.filter(q=>!statsFor(q).attempts).length);
+  const fresh=pickUnseenBroad(uniq.filter(q=>!statsFor(q).attempts),newN);
+  const used=new Set(fresh.map(q=>q.id));
+  const due=dueQuestions(uniq.filter(q=>!used.has(q.id))).slice(0,n-fresh.length);
+  due.forEach(q=>used.add(q.id));
+  const fill=pickAdaptive(uniq.filter(q=>!used.has(q.id)),n-fresh.length-due.length);
+  return [...fresh,...due,...fill].slice(0,n);
+}
 function overall(){
   const vals=Object.values(state.stats);
   const attempts=vals.reduce((s,x)=>s+x.attempts,0);
@@ -222,9 +250,10 @@ function renderHome(){
         <div><b>FE B 10</b><small>穴埋め中心</small></div>
         <div><b>AWS 20</b><small>4ドメイン</small></div>
       </div>
-      <p class="muted" style="font-size:12px">同じ得意問題だけに偏らず、未回答・誤答・弱点を優先して毎日組み直します。</p>
+      <p class="muted" style="font-size:12px">基本は<b>70%初見＋30%復習</b>。間違いは約8時間後、正解は1日→3日→7日→14日を目安に再出題し、丸暗記ではなく取り出す練習を繰り返します。</p>
       <button class="btn primary full" id="dailyMix">${todayCompleted("dailyMix")?"今日の日課をもう一度":"今日の40問を開始"}</button>
       <button class="btn secondary full" id="unseenMix" style="margin-top:8px">初見耐性60問（FE A20 / B20 / AWS20）</button>
+      <button class="btn ghost full" id="dueReview" style="margin-top:8px">期限が来た復習 ${dueCount(corePracticePool())}問</button>
     </section>
 
     <section class="card">
@@ -265,6 +294,11 @@ function renderHome(){
   `;
   $("#dailyMix").onclick=startDailyMix;
   $("#unseenMix").onclick=()=>startQuiz(buildUnseenMix(),{title:"初見耐性60問",mode:"unseen60",minutes:120,exam:false});
+  $("#dueReview").onclick=()=>{
+    const p=dueQuestions(corePracticePool());
+    if(!p.length){toast("今は期限が来た復習問題はありません");return;}
+    startQuiz(p.slice(0,15),{title:"間隔復習 "+Math.min(15,p.length)+"問",mode:"spacedReview",minutes:0,exam:false});
+  };
   $("#goCrash").onclick=()=>view("crash");
   $("#goFlight").onclick=()=>view("flight");
   $("#goDojo").onclick=()=>view("dojo");
@@ -627,10 +661,10 @@ function buildMockBReal(){
 function awsByDomain(domain){ return AWS.filter(q=>q.domain===domain); }
 function buildAwsPractice20(){
   return shuffle([
-    ...pickUnseenBroad(awsByDomain("secure"),6),
-    ...pickUnseenBroad(awsByDomain("resilient"),5),
-    ...pickUnseenBroad(awsByDomain("performance"),5),
-    ...pickUnseenBroad(awsByDomain("cost"),4)
+    ...pickNewAndDue(awsByDomain("secure"),6,.7),
+    ...pickNewAndDue(awsByDomain("resilient"),5,.7),
+    ...pickNewAndDue(awsByDomain("performance"),5,.7),
+    ...pickNewAndDue(awsByDomain("cost"),4,.7)
   ]);
 }
 function buildAwsMock(){
@@ -674,9 +708,9 @@ function buildUnseenMix(){
 }
 function buildDailyMix(){
   return shuffle([
-    ...pickUnseenBroad(DATA.A,10),
-    ...pickUnseenBroad([...(CRASH.gapBAlgo||[])],8),
-    ...pickUnseenBroad([...(CRASH.gapBSec||[])],2),
+    ...pickNewAndDue(DATA.A,10,.7),
+    ...pickNewAndDue([...(CRASH.gapBAlgo||[])],8,.7),
+    ...pickNewAndDue([...(CRASH.gapBSec||[])],2,.5),
     ...buildAwsPractice20()
   ]);
 }
@@ -920,7 +954,7 @@ function finishQuiz(){
     if(ok)correct++;
     const st=statsFor(q);
     const wasNew=!st.attempts;
-    if(hasAnswer(ans)){st.attempts++;if(ok)st.correct++;else st.wrong++;st.lastAnswer=ans;}
+    if(hasAnswer(ans)){st.attempts++;if(ok)st.correct++;else st.wrong++;st.lastAnswer=ans;scheduleReview(st,ok,Date.now());}
     st.uncertain=flag||(st.uncertain&&!ok);state.stats[q.id]=st;rows.push({q,ans,ok,flag,wasNew});
   });
   const title=cur.title,mode=cur.mode;
