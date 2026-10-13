@@ -1,4 +1,4 @@
-const CACHE = "fe-aws-pwa-v16-20261013";
+const CACHE = "fe-aws-pwa-v17-20261013";
 const ASSETS = [
   "./",
   "./index.html",
@@ -35,6 +35,14 @@ const ASSETS = [
   "./exam-a-wide-2.js",
   "./aws-extra-1.js",
   "./aws-extra-2.js",
+  "./exam-a-wide-3.js",
+  "./exam-a-wide-4.js",
+  "./fe-b-gap-3.js",
+  "./fe-b-gap-4.js",
+  "./aws-scenario-secure-1.js",
+  "./aws-scenario-resilient-1.js",
+  "./aws-scenario-performance-1.js",
+  "./aws-scenario-cost-1.js",
   "./guide-data.js",
   "./data-p-1.js",
   "./data-p-2.js",
