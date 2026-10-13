@@ -94,6 +94,13 @@ function pickNewAndDue(pool,n,newRatio=.7){
   const fill=pickAdaptive(uniq.filter(q=>!used.has(q.id)),n-fresh.length-due.length);
   return [...fresh,...due,...fill].slice(0,n);
 }
+function overallFor(pool){
+  const uniq=[...new Map(pool.map(q=>[q.id,q])).values()];
+  const rows=uniq.map(q=>statsFor(q)).filter(s=>s.attempts>0);
+  const attempts=rows.reduce((n,s)=>n+s.attempts,0);
+  const correct=rows.reduce((n,s)=>n+s.correct,0);
+  return {studied:rows.length,attempts,correct,accuracy:pct(correct,attempts)};
+}
 function overall(){
   const vals=Object.values(state.stats);
   const attempts=vals.reduce((s,x)=>s+x.attempts,0);
@@ -217,18 +224,19 @@ function todaySummary(){
 function formatMinutes(sec){ return sec?Math.max(1,Math.round(sec/60))+"分":"—"; }
 
 function renderHome(){
-  const o=overall(), weak=dynamicWeak();
+  const weak=dynamicWeak();
   const ready=readinessModel(), today=todaySummary();
-  const doneUnique=Object.values(state.stats).filter(x=>x.attempts>0).length;
+  const feAll=[...DATA.A,...feBPool()];
+  const feO=overallFor(feAll), awsO=overallFor(AWS);
   main.innerHTML=`
     <section class="card hero">
       <div class="muted">機内モード対応 PWA</div>
-      <h2 style="margin-top:4px">FE再受験＋AWS SAAを毎日回す</h2>
-      <p class="muted">FEは初見・穴埋め耐性、AWSは本番シナリオ型を重視。毎日両方に触れます。</p>
+      <h2 style="margin-top:4px">FEとAWSを分けて学習</h2>
+      <p class="muted">問題集・進捗・演習入口をFEとAWSで分離しました。必要な方だけ開いて学習できます。</p>
       <div class="kpi-row">
-        <div class="kpi"><b>${doneUnique}</b><small>学習済み問題</small></div>
-        <div class="kpi"><b>${o.accuracy}%</b><small>累計正答率</small></div>
-        <div class="kpi"><b>${o.uncertain}</b><small>迷った問題</small></div>
+        <div class="kpi"><b>${feO.studied}</b><small>FE 学習済み</small></div>
+        <div class="kpi"><b>${awsO.studied}</b><small>AWS 学習済み</small></div>
+        <div class="kpi"><b>${today.total}</b><small>今日の回答</small></div>
       </div>
       <div class="actions">
         <button class="btn primary" id="goCrash">🔥 直前7日モード</button>
@@ -238,7 +246,7 @@ function renderHome(){
     </section>
 
     <section class="card readiness-card">
-      <div class="section-title" style="margin-top:0"><h2>合格準備度</h2><span class="chip">推定</span></div>
+      <div class="section-title" style="margin-top:0"><h2>FE 合格準備度</h2><span class="chip">推定</span></div>
       <div class="readiness-main"><b>${ready.score}%</b><span>${esc(ready.label)}</span></div>
       <div class="bar"><span style="width:${Math.min(100,ready.score)}%"></span></div>
       <div class="kpi-row">
@@ -300,7 +308,7 @@ function renderHome(){
         <div class="kpi"><b>${AWS.length}</b><small>AWS SAA</small></div>
       </div>
       <p class="muted" style="font-size:13px">問題・解説・進捗は端末内に保存。通信なしで使用できます。</p>
-      <p class="muted" style="font-size:13px"><b>総問題バンク：${ALL.length}問</b>（FE＋AWS）。AWS：${AWS.length}問 / FE B穴埋め：${(CRASH.gapBAlgo||[]).length+(CRASH.gapBSec||[]).length}問。</p>
+      <p class="muted" style="font-size:13px"><b>FE：${DATA.A.length + feBPool().length}問</b> ／ <b>AWS SAA：${AWS.length}問</b>。演習時に両方が混ざることはありません。</p>
       <div class="kpi-row">
         <div class="kpi"><b>${unseenCount(DATA.A)}</b><small>A 未回答</small></div>
         <div class="kpi"><b>${unseenCount(feBPool())}</b><small>B 未回答</small></div>
