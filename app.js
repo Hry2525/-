@@ -246,8 +246,8 @@ function renderHome(){
     <section class="card">
       <div class="kpi-row">
         <div class="kpi"><b>${DATA.A.length}</b><small>科目A</small></div>
-        <div class="kpi"><b>${DATA.B.length}</b><small>科目B</small></div>
-        <div class="kpi"><b>${DATA.P.length}</b><small>IPA公開</small></div>
+        <div class="kpi"><b>${feBPool().length}</b><small>科目B</small></div>
+        <div class="kpi"><b>${AWS.length}</b><small>AWS SAA</small></div>
       </div>
       <p class="muted" style="font-size:13px">問題・解説・進捗は端末内に保存。通信なしで使用できます。</p>
       <p class="muted" style="font-size:13px"><b>総問題バンク：${ALL.length}問</b>（FE＋AWS）。AWS：${AWS.length}問 / FE B穴埋め：${(CRASH.gapBAlgo||[]).length+(CRASH.gapBSec||[]).length}問。</p>
@@ -661,6 +661,19 @@ function renderGuide(){
       <div class="install-note" style="margin-top:12px">${esc(GUIDE.officialNote)}</div>
     </section>
 
+    <section class="card aws-card">
+      <h3>SAA-C03 本番仕様</h3>
+      <div class="guide-two">
+        <div class="result-box"><b>130分</b><div class="muted">65問</div></div>
+        <div class="result-box"><b>択一＋複数選択</b><div class="muted">合格スケール 720 / 1000</div></div>
+      </div>
+      <div class="category-row"><div style="display:flex;justify-content:space-between"><b>セキュアな設計</b><b>30%</b></div></div>
+      <div class="category-row"><div style="display:flex;justify-content:space-between"><b>レジリエントな設計</b><b>26%</b></div></div>
+      <div class="category-row"><div style="display:flex;justify-content:space-between"><b>高パフォーマンス</b><b>24%</b></div></div>
+      <div class="category-row"><div style="display:flex;justify-content:space-between"><b>コスト最適化</b><b>20%</b></div></div>
+      <p class="muted" style="font-size:12px">AWS公式SAA-C03試験ガイド準拠。模試はこの比率に近づけて65問を構成します。</p>
+    </section>
+
     <section class="card">
       <h3>科目A 模試配分</h3>
       ${GUIDE.aDistribution.map(x=>`<div class="weak-item"><div><b>${esc(x.name)}</b><div class="muted" style="font-size:12px">${esc(x.range)}</div></div><div style="text-align:right"><b>${x.count}問</b><div class="muted" style="font-size:11px">${x.ratio}</div></div></div>`).join("")}
@@ -728,6 +741,12 @@ function renderMock(){
   $("#mockAWide").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AZ")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"FE 科目A 幅広60問",mode:"mockA",minutes:90,exam:true});
   $("#mockAPlus").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AX")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"科目A 追加60問セット",mode:"mockA",minutes:90,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
+}
+function feBPool(){
+  return [...new Map([
+    ...DATA.B,...CRASH.btrace,...(CRASH.security||[]),...(CRASH.longB||[]),...(CRASH.longBSec||[]),
+    ...(CRASH.examBAlgo||[]),...(CRASH.examBSec||[]),...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])
+  ].map(q=>[q.id,q])).values()];
 }
 function corePracticePool(){
   return [...DATA.A,...DATA.B,...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[]),...AWS];
