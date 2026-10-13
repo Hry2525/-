@@ -1,6 +1,6 @@
 {
-  "name": "基本情報技術者 FE オフライン学習",
-  "short_name": "FE学習",
+  "name": "FE＋AWS SAA 学習",
+  "short_name": "FE＋AWS",
   "description": "基本情報技術者試験 科目A/B・弱点演習・IPA公開問題をオフライン学習",
   "start_url": "./",
   "scope": "./",
