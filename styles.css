@@ -167,3 +167,13 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:
 .daily-plan-grid small{display:block;margin-top:3px;color:var(--muted)}
 .aws-card{border:1px solid #d8ccff}
 @media(max-width:420px){.daily-plan-grid{grid-template-columns:1fr 1fr 1fr}.daily-plan-grid>div{padding:8px 4px}.daily-plan-grid b{font-size:14px}}
+
+.clue-box,.scratch-box,.option-why{border-radius:12px;padding:13px;margin-top:10px;font-size:14px;line-height:1.65}
+.clue-box{background:#fff8dc;border:1px solid #e8d28f}
+.scratch-box{background:#f6f2ff;border:1px solid #d8c9f4}
+.option-why{background:#fafbfc;border:1px solid var(--line)}
+.clue-box b,.scratch-box b,.option-why>b{display:block;margin-bottom:6px}
+.option-why-row{padding:9px 0;border-top:1px solid var(--line)}
+.option-why-row:first-of-type{border-top:0}
+.option-why-row span{display:block;font-weight:750}
+.option-why-row small{display:block;margin-top:4px;color:var(--muted);line-height:1.55}
