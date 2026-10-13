@@ -409,7 +409,7 @@ function renderCrash(){
 
 
 function dojoPool(source){
-  if(source==="current") return [...DATA.A,...DATA.B,...DATA.P,...CRASH.btrace,...(CRASH.security||[])];
+  if(source==="current") return [...DATA.A,...DATA.B,...DATA.P,...CRASH.btrace,...(CRASH.security||[]),...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])];
   if(source==="official") return [...DATA.P];
   if(source==="legacy") return [...CRASH.old];
   if(source==="terms") return [...CRASH.terms];
@@ -577,7 +577,7 @@ function renderWeak(){
     <section class="card">
       <h3>分野を指定</h3>
       <select id="categoryPick" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:white">
-        ${[...new Set([...DATA.A,...DATA.B].map(q=>q.cat))].sort().map(c=>`<option>${esc(c)}</option>`).join("")}
+        ${[...new Set(corePracticePool().map(q=>q.cat))].sort().map(c=>`<option>${esc(c)}</option>`).join("")}
       </select>
       <div class="actions"><button class="btn ghost" id="c10">10問</button><button class="btn ghost" id="c20">20問</button></div>
     </section>`;
@@ -729,12 +729,15 @@ function renderMock(){
   $("#mockAPlus").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AX")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"科目A 追加60問セット",mode:"mockA",minutes:90,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
 }
+function corePracticePool(){
+  return [...DATA.A,...DATA.B,...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[]),...AWS];
+}
 function reviewPool(filter){
   let pool=ALL.filter(q=>{
     const s=statsFor(q);
     const needs=s.wrong>0 || s.uncertain;
     if(!needs) return false;
-    if(filter==="B") return DATA.B.some(x=>x.id===q.id);
+    if(filter==="B") return DATA.B.some(x=>x.id===q.id) || (CRASH.gapBAlgo||[]).some(x=>x.id===q.id) || (CRASH.gapBSec||[]).some(x=>x.id===q.id);
     return true;
   });
   pool.sort((x,y)=>{const a=statsFor(x),b=statsFor(y);return Number(b.uncertain)-Number(a.uncertain) || b.wrong-a.wrong;});
@@ -763,13 +766,13 @@ function renderReview(){
 }
 function startWeakQuiz(n,minutes=0){
   const weakCats=dynamicWeak().map(x=>x.cat);
-  let pool=[...DATA.A,...DATA.B].filter(q=>weakCats.includes(q.cat));
+  let pool=corePracticePool().filter(q=>weakCats.includes(q.cat));
   const priority=pool.filter(q=>["基礎理論","アルゴリズム・プログラミング","ネットワーク","企業と法務"].includes(q.cat));
   pool=[...priority,...pool];
   startQuiz(shuffle(pool).slice(0,Math.min(n,pool.length)),{title:`弱点優先 ${n}問`,mode:"weak",minutes,exam:false});
 }
 function startCategory(cat,n){
-  const pool=shuffle([...DATA.A,...DATA.B].filter(q=>q.cat===cat)).slice(0,n);
+  const pool=shuffle(corePracticePool().filter(q=>q.cat===cat)).slice(0,n);
   startQuiz(pool,{title:`${cat} ${pool.length}問`,mode:"category",minutes:0,exam:false});
 }
 function startReviewQuiz(n,minutes=0,filter=null){
