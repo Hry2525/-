@@ -43,6 +43,11 @@ function shuffle(arr){
   const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;
 }
 function pct(a,b){ return b ? Math.round(a/b*100) : 0; }
+function bindClick(id,handler){
+  const el=document.getElementById(id);
+  if(el) el.onclick=handler;
+  return !!el;
+}
 function isMulti(q){ return Array.isArray(q.a); }
 function hasAnswer(ans){ return ans!==undefined && (!Array.isArray(ans) || ans.length>0); }
 function answerCorrect(q,ans){
@@ -121,6 +126,8 @@ function view(name){
   $$(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
   if(timerHandle){clearInterval(timerHandle);timerHandle=null;}
   if(name==="home") renderHome();
+  if(name==="feBank") renderFeBank();
+  if(name==="awsBank") renderAwsBank();
   if(name==="flight") renderFlight();
   if(name==="weak") renderWeak();
   if(name==="mock") renderMock();
@@ -243,17 +250,29 @@ function renderHome(){
       <button class="btn ghost full" id="goAnalytics">毎日の成果を見る</button>
     </section>
 
-    <section class="card daily-mix-card">
-      <div class="section-title" style="margin-top:0"><h2>今日の日課｜FE＋AWS</h2><span class="chip">${todayCompleted("dailyMix")?"完了":"40問"}</span></div>
-      <div class="daily-plan-grid">
-        <div><b>FE A 10</b><small>全分野</small></div>
-        <div><b>FE B 10</b><small>穴埋め中心</small></div>
-        <div><b>AWS 20</b><small>4ドメイン</small></div>
+    <div class="section-title"><h2>問題集</h2><span class="chip">完全分離</span></div>
+    <section class="card fe-bank-card">
+      <div class="bank-head"><div><div class="bank-label">基本情報技術者</div><h3>FE 問題集</h3></div><span class="chip">${DATA.A.length + feBPool().length}問</span></div>
+      <p class="muted">科目Aと科目Bだけを学習します。AWS問題は混ざりません。</p>
+      <div class="kpi-row">
+        <div class="kpi"><b>${DATA.A.length}</b><small>科目A</small></div>
+        <div class="kpi"><b>${feBPool().length}</b><small>科目B</small></div>
+        <div class="kpi"><b>${unseenCount([...DATA.A,...feBPool()])}</b><small>FE 未回答</small></div>
       </div>
-      <p class="muted" style="font-size:12px">基本は<b>70%初見＋30%復習</b>。間違いは約8時間後、正解は1日→3日→7日→14日を目安に再出題し、丸暗記ではなく取り出す練習を繰り返します。</p>
-      <button class="btn primary full" id="dailyMix">${todayCompleted("dailyMix")?"今日の日課をもう一度":"今日の40問を開始"}</button>
-      <button class="btn secondary full" id="unseenMix" style="margin-top:8px">初見耐性60問（FE A20 / B20 / AWS20）</button>
-      <button class="btn ghost full" id="dueReview" style="margin-top:8px">期限が来た復習 ${dueCount(corePracticePool())}問</button>
+      <button class="btn primary full" id="goFEBank">FE問題集を開く</button>
+      <button class="btn ghost full" id="dailyFE" style="margin-top:8px">今日のFE 30問</button>
+    </section>
+
+    <section class="card aws-card">
+      <div class="bank-head"><div><div class="bank-label">Solutions Architect Associate</div><h3>AWS SAA 問題集</h3></div><span class="chip">${AWS.length}問</span></div>
+      <p class="muted">AWS SAA-C03だけを学習します。FE問題は混ざりません。</p>
+      <div class="kpi-row">
+        <div class="kpi"><b>${AWS.length}</b><small>SAA問題</small></div>
+        <div class="kpi"><b>${unseenCount(AWS)}</b><small>AWS 未回答</small></div>
+        <div class="kpi"><b>${dueCount(AWS)}</b><small>復習期限</small></div>
+      </div>
+      <button class="btn primary full" id="goAWSBank">AWS問題集を開く</button>
+      <button class="btn ghost full" id="dailyAWS" style="margin-top:8px">今日のAWS 20問</button>
     </section>
 
     <section class="card">
@@ -292,19 +311,16 @@ function renderHome(){
       <b>搭乗前に確認：</b> Safariで開き「ホーム画面に追加」→この画面右上が<b>オフライン準備完了</b>になってから機内モードへ。
     </section>
   `;
-  $("#dailyMix").onclick=startDailyMix;
-  $("#unseenMix").onclick=()=>startQuiz(buildUnseenMix(),{title:"初見耐性60問",mode:"unseen60",minutes:120,exam:false});
-  $("#dueReview").onclick=()=>{
-    const p=dueQuestions(corePracticePool());
-    if(!p.length){toast("今は期限が来た復習問題はありません");return;}
-    startQuiz(p.slice(0,15),{title:"間隔復習 "+Math.min(15,p.length)+"問",mode:"spacedReview",minutes:0,exam:false});
-  };
-  $("#goCrash").onclick=()=>view("crash");
-  $("#goFlight").onclick=()=>view("flight");
-  $("#goDojo").onclick=()=>view("dojo");
-  $("#goAnalytics").onclick=()=>view("analytics");
-  $("#goAnalytics2").onclick=()=>view("analytics");
-  $("#resumeBtn").onclick=()=> state.current ? resumeQuiz() : startWeakQuiz(10);
+  bindClick("goFEBank",()=>view("feBank"));
+  bindClick("goAWSBank",()=>view("awsBank"));
+  bindClick("dailyFE",()=>startQuiz(buildFeDaily(),{title:"今日のFE 30問",mode:"dailyFE",minutes:65,exam:false}));
+  bindClick("dailyAWS",()=>startQuiz(buildAwsPractice20(),{title:"今日のAWS SAA 20問",mode:"dailyAWS",minutes:40,exam:false}));
+  bindClick("goCrash",()=>view("crash"));
+  bindClick("goFlight",()=>view("flight"));
+  bindClick("goDojo",()=>view("dojo"));
+  bindClick("goAnalytics",()=>view("analytics"));
+  bindClick("goAnalytics2",()=>view("analytics"));
+  bindClick("resumeBtn",()=> state.current ? resumeQuiz() : startWeakQuiz(10));
 }
 function pickAdaptive(pool,n){
   const uniq=[...new Map(pool.map(q=>[q.id,q])).values()];
@@ -720,6 +736,113 @@ function startDailyMix(){
 function todayCompleted(mode){
   const today=localDay(Date.now());
   return (state.history||[]).some(x=>x.mode===mode && localDay(x.at)===today);
+}
+function buildFeDaily(){
+  return shuffle([
+    ...pickNewAndDue(DATA.A,20,.7),
+    ...pickNewAndDue(feBPool(),10,.7)
+  ]);
+}
+function buildFeUnseen30(){
+  return shuffle([
+    ...pickUnseenBroad(DATA.A,18),
+    ...pickUnseenBroad(feBPool(),12)
+  ]);
+}
+function renderFeBank(){
+  const feAll=[...DATA.A,...feBPool()];
+  const due=dueQuestions(feAll);
+  main.innerHTML=`
+    <div class="bank-page-head"><button class="back-link" id="feBack">← ホーム</button><div><div class="bank-label">基本情報技術者</div><h2>FE 問題集</h2></div></div>
+    <section class="card">
+      <div class="kpi-row">
+        <div class="kpi"><b>${DATA.A.length}</b><small>科目A</small></div>
+        <div class="kpi"><b>${feBPool().length}</b><small>科目B</small></div>
+        <div class="kpi"><b>${unseenCount(feAll)}</b><small>未回答</small></div>
+      </div>
+      <p class="muted" style="font-size:12px">ここではAWS問題は一切出しません。</p>
+    </section>
+    <section class="card">
+      <h3>毎日のFE</h3>
+      <p class="muted">A 20問＋B 10問。初見を優先し、期限が来た復習も混ぜます。</p>
+      <button class="btn primary full" id="feDaily30">今日のFE 30問</button>
+      <button class="btn secondary full" id="feUnseen30" style="margin-top:8px">FE 初見30問</button>
+      <button class="btn ghost full" id="feDue" style="margin-top:8px">FE 期限復習 ${due.length}問</button>
+    </section>
+    <section class="card">
+      <h3>科目A</h3>
+      <div class="actions">
+        <button class="btn secondary" id="feA20">科目A 20問</button>
+        <button class="btn primary" id="feAMock">本番60問</button>
+      </div>
+      <p class="muted" style="font-size:12px">基礎理論・ハードウェア・DB・NW・セキュリティ・AI・PM・経営・法務まで広く出題。</p>
+    </section>
+    <section class="card">
+      <h3>科目B</h3>
+      <div class="actions">
+        <button class="btn secondary" id="feB20">科目B 20問</button>
+        <button class="btn primary" id="feBMock">本番20問</button>
+      </div>
+      <p class="muted" style="font-size:12px">穴埋め・初見コード・データ構造・探索・DP・数理/データ活用・セキュリティを中心に出題。</p>
+    </section>`;
+  bindClick("feBack",()=>view("home"));
+  bindClick("feDaily30",()=>startQuiz(buildFeDaily(),{title:"今日のFE 30問",mode:"dailyFE",minutes:65,exam:false}));
+  bindClick("feUnseen30",()=>startQuiz(buildFeUnseen30(),{title:"FE 初見30問",mode:"feUnseen30",minutes:65,exam:false}));
+  bindClick("feDue",()=>{
+    const p=dueQuestions(feAll);
+    if(!p.length){toast("FEの期限復習は今ありません");return;}
+    startQuiz(p.slice(0,20),{title:"FE 間隔復習",mode:"feSpaced",minutes:0,exam:false});
+  });
+  bindClick("feA20",()=>startQuiz(pickNewAndDue(DATA.A,20,.75),{title:"FE 科目A 20問",mode:"feA20",minutes:30,exam:false}));
+  bindClick("feAMock",()=>startQuiz(buildMockA(),{title:"FE 科目A 60問模試",mode:"mockA",minutes:90,exam:true}));
+  bindClick("feB20",()=>startQuiz(pickNewAndDue(feBPool(),20,.75),{title:"FE 科目B 20問",mode:"feB20",minutes:100,exam:false}));
+  bindClick("feBMock",()=>startQuiz(buildMockBReal(),{title:"FE 科目B 20問模試",mode:"mockB",minutes:100,exam:true}));
+}
+function renderAwsBank(){
+  const due=dueQuestions(AWS);
+  main.innerHTML=`
+    <div class="bank-page-head"><button class="back-link" id="awsBack">← ホーム</button><div><div class="bank-label">SAA-C03</div><h2>AWS SAA 問題集</h2></div></div>
+    <section class="card aws-card">
+      <div class="kpi-row">
+        <div class="kpi"><b>${AWS.length}</b><small>問題数</small></div>
+        <div class="kpi"><b>${unseenCount(AWS)}</b><small>未回答</small></div>
+        <div class="kpi"><b>${due.length}</b><small>期限復習</small></div>
+      </div>
+      <p class="muted" style="font-size:12px">ここではFE問題は一切出しません。</p>
+    </section>
+    <section class="card">
+      <h3>毎日のAWS</h3>
+      <p class="muted">4ドメインを混ぜ、本番シナリオ型＋複数選択を含めます。</p>
+      <button class="btn primary full" id="awsDaily20">今日のAWS 20問</button>
+      <button class="btn secondary full" id="awsUnseen30" style="margin-top:8px">AWS 初見30問</button>
+      <button class="btn ghost full" id="awsDue" style="margin-top:8px">AWS 期限復習 ${due.length}問</button>
+    </section>
+    <section class="card">
+      <h3>本番形式</h3>
+      <button class="btn primary full" id="awsMock65">SAA-C03 65問 / 130分</button>
+    </section>
+    <section class="card">
+      <h3>ドメイン別</h3>
+      <div class="domain-grid">
+        <button class="btn ghost" data-aws-domain="secure">セキュア 10問</button>
+        <button class="btn ghost" data-aws-domain="resilient">レジリエント 10問</button>
+        <button class="btn ghost" data-aws-domain="performance">高パフォーマンス 10問</button>
+        <button class="btn ghost" data-aws-domain="cost">コスト最適化 10問</button>
+      </div>
+    </section>`;
+  bindClick("awsBack",()=>view("home"));
+  bindClick("awsDaily20",()=>startQuiz(buildAwsPractice20(),{title:"今日のAWS SAA 20問",mode:"dailyAWS",minutes:40,exam:false}));
+  bindClick("awsUnseen30",()=>startQuiz(pickUnseenBroad(AWS,30),{title:"AWS SAA 初見30問",mode:"awsUnseen30",minutes:60,exam:false}));
+  bindClick("awsDue",()=>{
+    const p=dueQuestions(AWS);
+    if(!p.length){toast("AWSの期限復習は今ありません");return;}
+    startQuiz(p.slice(0,20),{title:"AWS SAA 間隔復習",mode:"awsSpaced",minutes:0,exam:false});
+  });
+  bindClick("awsMock65",()=>startQuiz(buildAwsMock(),{title:"AWS SAA-C03 65問模試",mode:"mockAWS",minutes:130,exam:true}));
+  $$(".domain-grid [data-aws-domain]").forEach(b=>b.onclick=()=>{
+    const d=b.dataset.awsDomain;
+    startQuiz(pickNewAndDue(awsByDomain(d),10,.75),{title:"AWS "+b.textContent,mode:"awsDomain",minutes:20,exam:false});
+  });
 }
 function renderGuide(){
   main.innerHTML=`
@@ -1216,6 +1339,14 @@ async function setupOffline(){
   try{await navigator.serviceWorker.register("./sw.js");await navigator.serviceWorker.ready;badge.textContent="オフライン準備完了";badge.className="offline-badge ready";}
   catch(e){badge.textContent="準備エラー";badge.className="offline-badge file";}
 }
+// data-action fallback: iOS/Safariで個別onclick登録に失敗しても主要画面へ遷移できる
+document.addEventListener("click",(e)=>{
+  const el=e.target.closest("button");
+  if(!el) return;
+  if(el.id==="goFEBank"){ e.preventDefault(); view("feBank"); }
+  else if(el.id==="goAWSBank"){ e.preventDefault(); view("awsBank"); }
+});
+// data-action fallback
 setupOffline();
 view(state.lastView || "home");
 })();
