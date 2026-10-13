@@ -223,6 +223,7 @@ function renderHome(){
       </div>
       <p class="muted" style="font-size:12px">同じ得意問題だけに偏らず、未回答・誤答・弱点を優先して毎日組み直します。</p>
       <button class="btn primary full" id="dailyMix">${todayCompleted("dailyMix")?"今日の日課をもう一度":"今日の40問を開始"}</button>
+      <button class="btn secondary full" id="unseenMix" style="margin-top:8px">初見耐性60問（FE A20 / B20 / AWS20）</button>
     </section>
 
     <section class="card">
@@ -257,6 +258,7 @@ function renderHome(){
     </section>
   `;
   $("#dailyMix").onclick=startDailyMix;
+  $("#unseenMix").onclick=()=>startQuiz(buildUnseenMix(),{title:"初見耐性60問",mode:"unseen60",minutes:120,exam:false});
   $("#goCrash").onclick=()=>view("crash");
   $("#goFlight").onclick=()=>view("flight");
   $("#goDojo").onclick=()=>view("dojo");
@@ -631,6 +633,37 @@ function buildAwsMock(){
     ...pickAdaptive(awsByDomain("resilient"),17),
     ...pickAdaptive(awsByDomain("performance"),15),
     ...pickAdaptive(awsByDomain("cost"),13)
+  ]);
+}
+function pickUnseenBroad(pool,n){
+  const groups=new Map();
+  [...new Map(pool.map(q=>[q.id,q])).values()].forEach(q=>{
+    const key=q.cat||q.domain||"その他";
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(q);
+  });
+  const picked=[], used=new Set();
+  const cats=shuffle([...groups.keys()]);
+  for(const cat of cats){
+    if(picked.length>=n) break;
+    const candidates=groups.get(cat).sort((a,b)=>{
+      const sa=statsFor(a),sb=statsFor(b);
+      return (sa.attempts-sb.attempts) || (sb.wrong-sa.wrong) || Math.random()-.5;
+    });
+    const q=candidates.find(x=>!used.has(x.id));
+    if(q){picked.push(q);used.add(q.id);}
+  }
+  if(picked.length<n){
+    const rest=pool.filter(q=>!used.has(q.id)).sort((a,b)=>statsFor(a).attempts-statsFor(b).attempts || Math.random()-.5);
+    for(const q of rest){if(picked.length>=n)break;picked.push(q);used.add(q.id);}
+  }
+  return picked;
+}
+function buildUnseenMix(){
+  return shuffle([
+    ...pickUnseenBroad(DATA.A,20),
+    ...pickUnseenBroad([...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])],20),
+    ...pickUnseenBroad(AWS,20)
   ]);
 }
 function buildDailyMix(){
@@ -1071,6 +1104,48 @@ function coachFor(q){
     trap:"似た用語や途中値を選ばないよう、最終的に何を聞かれているかを確認する。"
   };
 }
+function scratchRule(q){
+  const t=((q.q||"")+" "+(q.code||"")+" "+(q.focus||"")).toLowerCase();
+  if(q.scratch) return q.scratch;
+  if(q.exam==="AWS"){
+    return "紙には『必須要件→禁止条件→優先軸』の3つだけ書く。例：高可用 / 運用最小 / コスト優先。サービス名を先に思い出そうとしない。";
+  }
+  if(t.includes("low")&&t.includes("high")&&t.includes("mid")) return "L・H・M・a[M] の4列だけ書く。各周回で更新後のL/Hを1行追加する。";
+  if(t.includes("stack")||t.includes("スタック")||t.includes("push")||t.includes("pop")) return "スタックを縦に描き、pushで上へ追加、popで上を消す。頭の中だけで追わない。";
+  if(t.includes("queue")||t.includes("キュー")||t.includes("enqueue")||t.includes("dequeue")) return "キューを『出口 ← 要素列 ← 入口』で書き、dequeueで左、enqueueで右を更新する。";
+  if(t.includes("matrix")||t.includes("行列")||t.includes("m[")||t.includes("r[")) return "元の添字(i,j)→移動先の添字を1要素ずつ書く。まず(1,1),(1,2),(1,3)だけで規則を確認する。";
+  if(t.includes("再帰")||t.includes("fib(")||t.includes("power(")) return "終了条件を最上段に書き、呼出しは↓、戻り値は↑で別々に追う。";
+  if(t.includes("dp[")||t.includes("動的計画")) return "dpの意味を日本語で1行書く→初期値→更新式の順。必要な添字だけ横表にする。";
+  if(t.includes("left")&&t.includes("right")) return "left / right / 判定値 の3列。どちらを動かすと値が増減するかを矢印で書く。";
+  if(q.code) return "答えに関係する変数だけ抜き出し、『初期値→更新後』を表にする。コード全文を書き写さない。";
+  return "問題文の条件を1〜3語で横にメモし、選択肢をその条件に合う/合わないで消す。";
+}
+const TERM_ROLE = [
+["CloudFront","CDN/エッジキャッシュ"],["Global Accelerator","TCP/UDPのグローバル経路最適化"],["Route 53","DNS/ヘルスチェック/ルーティング"],
+["SQS","メッセージキュー/疎結合"],["SNS","Pub/Sub・ファンアウト"],["EventBridge","イベントルーティング"],["Step Functions","ワークフロー制御"],
+["Multi-AZ","高可用性・自動フェイルオーバー"],["Read Replica","読み取りスケール"],["RDS Proxy","DB接続プール"],["DAX","DynamoDB専用キャッシュ"],
+["EBS","EC2向けブロックストレージ"],["EFS","共有NFSファイル"],["FSx","用途特化ファイルシステム"],["S3","オブジェクトストレージ"],
+["WAF","HTTP(S)のWeb攻撃対策"],["Shield","DDoS対策"],["GuardDuty","脅威検知"],["Inspector","脆弱性管理"],["Macie","S3の機密データ検出"],
+["Secrets Manager","シークレット保管/ローテーション"],["KMS","暗号鍵管理"],["CloudTrail","API操作監査"],["Config","設定変更/準拠評価"],
+["Auto Scaling","台数自動調整"],["ALB","L7 HTTP負荷分散"],["NLB","L4 TCP/UDP高性能負荷分散"],["Lambda","イベント駆動サーバレス実行"],
+["DataSync","オンラインデータ転送/同期"],["DMS","DB移行/レプリケーション"],["Direct Connect","専用線"],["PrivateLink","VPCからサービスへ私設接続"]
+];
+function optionReason(q,i){
+  if(Array.isArray(q.why) && q.why[i]) return q.why[i];
+  const correct=isMulti(q)?q.a.includes(i):q.a===i;
+  if(correct) return "○ "+(q.exp||"問題条件を満たす選択肢。");
+  const o=String(q.opts?.[i]||"");
+  for(const [term,role] of TERM_ROLE){
+    if(o.includes(term)) return "× "+term+"は「"+role+"」。この設問の決め手（"+(q.focus||"条件")+"）とは役割がずれる。";
+  }
+  if(/[0-9]/.test(o) && (q.code||/[計算率秒時間個]/.test(q.q||""))) return "× 計算・トレース結果が一致しない。上の手順を1行ずつ追うと除外できる。";
+  return "× 「"+(q.focus||"正解条件")+"」を満たさない。用語の役割ではなく、設問の必須条件と照合して切る。";
+}
+function clueLine(q){
+  if(q.clue) return q.clue;
+  const ans=answerLabel(q.a);
+  return (q.focus||"正解を決める条件を特定する。")+" → 正解 "+ans;
+}
 function traceTableHtml(trace){
   if(!trace || !trace.headers || !trace.rows) return "";
   return `<div class="trace-wrap"><div class="trace-title">実際にこう追う</div><table class="trace-table"><thead><tr>${trace.headers.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${trace.rows.map(row=>`<tr>${row.map(v=>`<td>${esc(String(v))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
@@ -1087,7 +1162,7 @@ function renderResults(title,rows,correct,answered,flagged,mode){
       <div class="result-grid"><div class="result-box"><b>${rows.filter(r=>!r.ok).length}</b><div class="muted">誤答/未回答</div></div><div class="result-box"><b>${flagged}</b><div class="muted">迷った問題</div></div></div>
     </section>
     <section class="card"><h3>分野別</h3>${Object.entries(cats).map(([cat,x])=>`<div class="category-row"><div style="display:flex;justify-content:space-between"><b>${esc(cat)}</b><b>${x.c}/${x.n}</b></div><div class="bar"><span style="width:${pct(x.c,x.n)}%"></span></div></div>`).join("")}</section>
-    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${answerLabel(r.ans)}</b>　正解：<b>${answerLabel(r.q.a)}</b></p><div class="focus-box"><b>この問題ではここを見る</b><div>${esc(coachFor(r.q).focus)}</div></div><div class="solve-guide"><b>実際の解き方</b><ol>${coachFor(r.q).steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></div>${traceTableHtml(coachFor(r.q).trace)}<div class="explain"><b>なぜこの答えになるか</b><div>${esc(r.q.exp||"")}</div></div><div class="memory-tip"><b>こう覚えると楽</b><div>${esc(coachFor(r.q).memory)}</div></div><div class="trap-tip"><b>本番のひっかけ</b><div>${esc(coachFor(r.q).trap)}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
+    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${answerLabel(r.ans)}</b>　正解：<b>${answerLabel(r.q.a)}</b></p><div class="clue-box"><b>30秒で見抜く</b><div>${esc(clueLine(r.q))}</div></div><div class="focus-box"><b>この問題ではここを見る</b><div>${esc(coachFor(r.q).focus)}</div></div><div class="solve-guide"><b>実際の解き方</b><ol>${coachFor(r.q).steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></div><div class="scratch-box"><b>紙に書くなら</b><div>${esc(scratchRule(r.q))}</div></div>${traceTableHtml(coachFor(r.q).trace)}<div class="option-why"><b>選択肢をこう切る</b>${r.q.opts.map((o,oi)=>`<div class="option-why-row"><span>${String.fromCharCode(65+oi)}. ${esc(o)}</span><small>${esc(optionReason(r.q,oi))}</small></div>`).join("")}</div><div class="explain"><b>なぜこの答えになるか</b><div>${esc(r.q.exp||"")}</div></div><div class="memory-tip"><b>こう覚えると楽</b><div>${esc(coachFor(r.q).memory)}</div></div><div class="trap-tip"><b>本番のひっかけ</b><div>${esc(coachFor(r.q).trap)}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
     <div class="actions"><button class="btn primary" id="retryWrong">誤答・？を解く</button><button class="btn ghost" id="backHome">ホーム</button></div>`;
   $("#backHome").onclick=()=>view("home");
   $("#retryWrong").onclick=()=>{const pool=rows.filter(r=>!r.ok||r.flag).map(r=>r.q);if(!pool.length){toast("復習対象はありません");return;}startQuiz(pool,{title:"このセットの復習",mode:"retry",minutes:0,exam:false});};
