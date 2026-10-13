@@ -717,13 +717,15 @@ function renderMock(){
     <section class="card"><h3>FE 科目A</h3><p>60問・90分。テクノロジ41＋マネジメント7＋ストラテジ12。</p><button class="btn primary full" id="mockA">科目A 60問模試</button></section>
     <section class="card"><h3>FE 科目B｜穴埋め重視</h3><p>20問・100分。今回の本番経験を反映し、初見仕様・穴埋めを大半にして16問アルゴリズム＋4問セキュリティ。</p><button class="btn primary full" id="mockB">科目B 20問模試</button></section>
     <section class="card aws-card"><h3>AWS SAA-C03</h3><p>65問・130分。択一＋複数選択。公式4ドメイン比率に近い構成。</p><button class="btn primary full" id="mockAWS">SAA 65問模試</button><div class="actions"><button class="btn secondary" id="aws20">SAA 20問</button><button class="btn ghost" id="gapB20">FE B穴埋め20問</button></div></section>
-    <section class="card"><h3>科目A 追加固定セット</h3><p>追加した60問を同じ順で反復できます。</p><button class="btn secondary full" id="mockAPlus">追加60問セット</button></section>
+    <section class="card"><h3>科目A 幅広60問セット</h3><p>初見用語・別論点を増やした追加60問。今回の590点から600超えを狙う補強セット。</p><button class="btn secondary full" id="mockAWide">幅広60問セット</button></section>
+    <section class="card"><h3>科目A 追加固定セット</h3><p>以前追加した60問を同じ順で反復できます。</p><button class="btn ghost full" id="mockAPlus">追加60問セット</button></section>
     <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">公開済み問題で実際の論点を確認。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
   $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"FE 科目A 60問模試",mode:"mockA",minutes:90,exam:true});
   $("#mockB").onclick=()=>startQuiz(buildMockBReal(),{title:"FE 科目B 穴埋め重視20問",mode:"mockB",minutes:100,exam:true});
   $("#mockAWS").onclick=()=>startQuiz(buildAwsMock(),{title:"AWS SAA-C03 65問模試",mode:"mockAWS",minutes:130,exam:true});
   $("#aws20").onclick=()=>startQuiz(buildAwsPractice20(),{title:"AWS SAA 本番形式20問",mode:"aws20",minutes:40,exam:false});
   $("#gapB20").onclick=()=>startQuiz(pickAdaptive([...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])],20),{title:"FE B 穴埋め20問",mode:"gapB20",minutes:100,exam:false});
+  $("#mockAWide").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AZ")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"FE 科目A 幅広60問",mode:"mockA",minutes:90,exam:true});
   $("#mockAPlus").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AX")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"科目A 追加60問セット",mode:"mockA",minutes:90,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
 }
