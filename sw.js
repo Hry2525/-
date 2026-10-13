@@ -1,9 +1,9 @@
-const CACHE = "fe-aws-pwa-v20-20261013";
+const CACHE = "fe-aws-pwa-v21-20261013";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=21",
+  "./app.js?v=21",
   "./manifest.webmanifest",
   "./data-init.js",
   "./data-a-1.js",
