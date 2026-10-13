@@ -621,10 +621,10 @@ function buildMockBReal(){
 function awsByDomain(domain){ return AWS.filter(q=>q.domain===domain); }
 function buildAwsPractice20(){
   return shuffle([
-    ...pickAdaptive(awsByDomain("secure"),6),
-    ...pickAdaptive(awsByDomain("resilient"),5),
-    ...pickAdaptive(awsByDomain("performance"),5),
-    ...pickAdaptive(awsByDomain("cost"),4)
+    ...pickUnseenBroad(awsByDomain("secure"),6),
+    ...pickUnseenBroad(awsByDomain("resilient"),5),
+    ...pickUnseenBroad(awsByDomain("performance"),5),
+    ...pickUnseenBroad(awsByDomain("cost"),4)
   ]);
 }
 function buildAwsMock(){
@@ -668,9 +668,9 @@ function buildUnseenMix(){
 }
 function buildDailyMix(){
   return shuffle([
-    ...pickAdaptive(DATA.A,10),
-    ...pickAdaptive([...(CRASH.gapBAlgo||[])],8),
-    ...pickAdaptive([...(CRASH.gapBSec||[])],2),
+    ...pickUnseenBroad(DATA.A,10),
+    ...pickUnseenBroad([...(CRASH.gapBAlgo||[])],8),
+    ...pickUnseenBroad([...(CRASH.gapBSec||[])],2),
     ...buildAwsPractice20()
   ]);
 }
@@ -913,8 +913,9 @@ function finishQuiz(){
     if(hasAnswer(ans))answered++;
     if(ok)correct++;
     const st=statsFor(q);
+    const wasNew=!st.attempts;
     if(hasAnswer(ans)){st.attempts++;if(ok)st.correct++;else st.wrong++;st.lastAnswer=ans;}
-    st.uncertain=flag||(st.uncertain&&!ok);state.stats[q.id]=st;rows.push({q,ans,ok,flag});
+    st.uncertain=flag||(st.uncertain&&!ok);state.stats[q.id]=st;rows.push({q,ans,ok,flag,wasNew});
   });
   const title=cur.title,mode=cur.mode;
   state.history ||= [];
@@ -1153,6 +1154,7 @@ function traceTableHtml(trace){
 
 function renderResults(title,rows,correct,answered,flagged,mode){
   const total=rows.length,acc=pct(correct,total),cats={};
+  const firstRows=rows.filter(r=>r.wasNew), firstCorrect=firstRows.filter(r=>r.ok).length, firstAcc=pct(firstCorrect,firstRows.length);
   rows.forEach(r=>{cats[r.q.cat] ||= {n:0,c:0};cats[r.q.cat].n++;if(r.ok)cats[r.q.cat].c++;});
   main.innerHTML=`
     <h2>${esc(title)} 結果</h2>
@@ -1160,6 +1162,7 @@ function renderResults(title,rows,correct,answered,flagged,mode){
       <div class="result-score ${acc>=80?"good":acc>=60?"mid":"bad"}">${correct}/${total}</div>
       <p><b>${acc}%</b>　回答済み ${answered}/${total}　？ ${flagged}問</p>
       <div class="result-grid"><div class="result-box"><b>${rows.filter(r=>!r.ok).length}</b><div class="muted">誤答/未回答</div></div><div class="result-box"><b>${flagged}</b><div class="muted">迷った問題</div></div></div>
+      <div class="result-grid" style="margin-top:8px"><div class="result-box"><b>${firstRows.length}</b><div class="muted">今回の初見</div></div><div class="result-box"><b>${firstRows.length?firstAcc+"%":"—"}</b><div class="muted">初見正答率</div></div></div>
     </section>
     <section class="card"><h3>分野別</h3>${Object.entries(cats).map(([cat,x])=>`<div class="category-row"><div style="display:flex;justify-content:space-between"><b>${esc(cat)}</b><b>${x.c}/${x.n}</b></div><div class="bar"><span style="width:${pct(x.c,x.n)}%"></span></div></div>`).join("")}</section>
     <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${answerLabel(r.ans)}</b>　正解：<b>${answerLabel(r.q.a)}</b></p><div class="clue-box"><b>30秒で見抜く</b><div>${esc(clueLine(r.q))}</div></div><div class="focus-box"><b>この問題ではここを見る</b><div>${esc(coachFor(r.q).focus)}</div></div><div class="solve-guide"><b>実際の解き方</b><ol>${coachFor(r.q).steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></div><div class="scratch-box"><b>紙に書くなら</b><div>${esc(scratchRule(r.q))}</div></div>${traceTableHtml(coachFor(r.q).trace)}<div class="option-why"><b>選択肢をこう切る</b>${r.q.opts.map((o,oi)=>`<div class="option-why-row"><span>${String.fromCharCode(65+oi)}. ${esc(o)}</span><small>${esc(optionReason(r.q,oi))}</small></div>`).join("")}</div><div class="explain"><b>なぜこの答えになるか</b><div>${esc(r.q.exp||"")}</div></div><div class="memory-tip"><b>こう覚えると楽</b><div>${esc(coachFor(r.q).memory)}</div></div><div class="trap-tip"><b>本番のひっかけ</b><div>${esc(coachFor(r.q).trap)}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
