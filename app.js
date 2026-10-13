@@ -5,7 +5,8 @@ const DATA = window.FE_DATA;
 const CRASH = window.FE_CRASH;
 const GUIDE = window.FE_GUIDE;
 const EXPLAIN = window.FE_EXPLAIN || {};
-const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[]), ...(CRASH.longB||[]), ...(CRASH.longBSec||[]), ...(CRASH.examBAlgo||[]), ...(CRASH.examBSec||[])];
+const AWS = window.AWS_SAA || [];
+const ALL = [...DATA.A, ...DATA.B, ...DATA.P, ...CRASH.old, ...CRASH.terms, ...CRASH.btrace, ...(CRASH.security||[]), ...(CRASH.longB||[]), ...(CRASH.longBSec||[]), ...(CRASH.examBAlgo||[]), ...(CRASH.examBSec||[]), ...(CRASH.gapBAlgo||[]), ...(CRASH.gapBSec||[]), ...AWS];
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 const main = $("#main");
@@ -42,6 +43,20 @@ function shuffle(arr){
   const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;
 }
 function pct(a,b){ return b ? Math.round(a/b*100) : 0; }
+function isMulti(q){ return Array.isArray(q.a); }
+function hasAnswer(ans){ return ans!==undefined && (!Array.isArray(ans) || ans.length>0); }
+function answerCorrect(q,ans){
+  if(!hasAnswer(ans)) return false;
+  if(!isMulti(q)) return ans===q.a;
+  if(!Array.isArray(ans) || ans.length!==q.a.length) return false;
+  const x=[...ans].sort((a,b)=>a-b), y=[...q.a].sort((a,b)=>a-b);
+  return x.every((v,i)=>v===y[i]);
+}
+function answerLabel(ans){
+  if(!hasAnswer(ans)) return "未回答";
+  const arr=Array.isArray(ans)?[...ans].sort((a,b)=>a-b):[ans];
+  return arr.map(i=>String.fromCharCode(65+i)).join("・");
+}
 function statsFor(q){
   return state.stats[q.id] || {attempts:0,correct:0,wrong:0,uncertain:false,lastAnswer:null};
 }
@@ -172,8 +187,8 @@ function renderHome(){
   main.innerHTML=`
     <section class="card hero">
       <div class="muted">機内モード対応 PWA</div>
-      <h2 style="margin-top:4px">往復4時間で、本番力を上げる</h2>
-      <p class="muted">一度オンラインで「オフライン準備完了」になれば、ホーム画面から機内モードで使えます。</p>
+      <h2 style="margin-top:4px">FE再受験＋AWS SAAを毎日回す</h2>
+      <p class="muted">FEは初見・穴埋め耐性、AWSは本番シナリオ型を重視。毎日両方に触れます。</p>
       <div class="kpi-row">
         <div class="kpi"><b>${doneUnique}</b><small>学習済み問題</small></div>
         <div class="kpi"><b>${o.accuracy}%</b><small>累計正答率</small></div>
@@ -197,6 +212,17 @@ function renderHome(){
       </div>
       <p class="muted" style="font-size:12px">合格確率ではありません。直近のA/B模試・70/20/10・Bトレース・網羅度から算出する学習指標です。</p>
       <button class="btn ghost full" id="goAnalytics">毎日の成果を見る</button>
+    </section>
+
+    <section class="card daily-mix-card">
+      <div class="section-title" style="margin-top:0"><h2>今日の日課｜FE＋AWS</h2><span class="chip">${todayCompleted("dailyMix")?"完了":"40問"}</span></div>
+      <div class="daily-plan-grid">
+        <div><b>FE A 10</b><small>全分野</small></div>
+        <div><b>FE B 10</b><small>穴埋め中心</small></div>
+        <div><b>AWS 20</b><small>4ドメイン</small></div>
+      </div>
+      <p class="muted" style="font-size:12px">同じ得意問題だけに偏らず、未回答・誤答・弱点を優先して毎日組み直します。</p>
+      <button class="btn primary full" id="dailyMix">${todayCompleted("dailyMix")?"今日の日課をもう一度":"今日の40問を開始"}</button>
     </section>
 
     <section class="card">
@@ -224,12 +250,13 @@ function renderHome(){
         <div class="kpi"><b>${DATA.P.length}</b><small>IPA公開</small></div>
       </div>
       <p class="muted" style="font-size:13px">問題・解説・進捗は端末内に保存。通信なしで使用できます。</p>
-      <p class="muted" style="font-size:13px"><b>総問題バンク：${ALL.length}問</b>（本番形式・公開問題・旧午前頻出・長文B・セキュリティケース）</p>
+      <p class="muted" style="font-size:13px"><b>総問題バンク：${ALL.length}問</b>（FE＋AWS）。AWS：${AWS.length}問 / FE B穴埋め：${(CRASH.gapBAlgo||[]).length+(CRASH.gapBSec||[]).length}問。</p>
     </section>
     <section class="install-note">
       <b>搭乗前に確認：</b> Safariで開き「ホーム画面に追加」→この画面右上が<b>オフライン準備完了</b>になってから機内モードへ。
     </section>
   `;
+  $("#dailyMix").onclick=startDailyMix;
   $("#goCrash").onclick=()=>view("crash");
   $("#goFlight").onclick=()=>view("flight");
   $("#goDojo").onclick=()=>view("dojo");
@@ -262,7 +289,7 @@ function buildCrashMix(n=30){
   const bCount=Math.max(1,Math.round(currentCount/3));
   const aCount=currentCount-bCount;
   const currentA=pickAdaptive([...DATA.A,...DATA.P.filter(q=>q.cat.includes("科目A"))],aCount);
-  const currentB=pickAdaptive([...DATA.B,...DATA.P.filter(q=>q.cat.includes("科目B")),...CRASH.btrace,...(CRASH.security||[])],bCount);
+  const currentB=pickAdaptive([...DATA.B,...DATA.P.filter(q=>q.cat.includes("科目B")),...CRASH.btrace,...(CRASH.security||[]),...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])],bCount);
   const old=pickAdaptive(CRASH.old,oldCount);
   const terms=pickAdaptive(CRASH.terms,termCount);
   return shuffle([...currentA,...currentB,...old,...terms]);
@@ -386,6 +413,8 @@ function dojoPool(source){
   if(source==="official") return [...DATA.P];
   if(source==="legacy") return [...CRASH.old];
   if(source==="terms") return [...CRASH.terms];
+  if(source==="gapb") return [...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])];
+  if(source==="aws") return [...AWS];
   return [...ALL];
 }
 function filterByHistory(pool,mode){
@@ -406,6 +435,8 @@ function renderDojo(){
         <option value="official">IPA公開問題</option>
         <option value="legacy">旧午前・頻出のみ</option>
         <option value="terms">初見用語</option>
+        <option value="gapb">FE科目B 穴埋め・初見コード</option>
+        <option value="aws">AWS SAA</option>
         <option value="all">全問題</option>
       </select>
       <label class="field-label">分野</label>
@@ -451,7 +482,7 @@ function renderAnalytics(){
   const r=readinessModel(), days=dailyRows().slice(-7).reverse(), today=todaySummary();
   const weak=dynamicWeak().slice(0,5);
   const comps=r.components;
-  const latestA=avgPct(recentMode("mockA",2)),latestB=avgPct(recentMode("mockB",2));
+  const latestA=avgPct(recentMode("mockA",2)),latestB=avgPct(recentMode("mockB",2)),latestAWS=avgPct(recentMode("mockAWS",2));
   main.innerHTML=`
     <h2>成績・合格準備度</h2>
     <section class="card hero">
@@ -491,6 +522,7 @@ function renderAnalytics(){
       <ul class="list">
         <li>科目A直近2回：<b>${latestA===null?'未実施':latestA+'%'}</b></li>
         <li>科目B直近2回：<b>${latestB===null?'未実施':latestB+'%'}</b></li>
+        <li>AWS SAA直近2回：<b>${latestAWS===null?'未実施':latestAWS+'%'}</b></li>
         <li>A/Bとも80%前後を2回続けて取れれば、かなり余裕を持った状態。</li>
         <li>70〜79%なら受験は見えるが、誤答分野を2〜4日集中補強。</li>
         <li>70%未満なら、受験日まで毎日30問＋Bトレースを優先。</li>
@@ -572,13 +604,49 @@ function buildMockB(){
   return [...pickAdaptive(algo,16),...pickAdaptive(sec,4)];
 }
 function buildMockBReal(){
-  const basicAlgo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace];
-  const longAlgo=[...(CRASH.longB||[]),...(CRASH.examBAlgo||[])];
-  const longSec=[...(CRASH.longBSec||[]),...(CRASH.examBSec||[])];
-  const first=pickAdaptive(basicAlgo,6);
-  const later=pickAdaptive(longAlgo,10);
-  const sec=pickAdaptive(longSec,4);
-  return [...first,...later,...sec];
+  const gapAlgo=[...(CRASH.gapBAlgo||[])];
+  const gapSec=[...(CRASH.gapBSec||[])];
+  const otherAlgo=[...DATA.B.filter(q=>q.cat==="アルゴリズム・プログラミング"),...CRASH.btrace,...(CRASH.longB||[]),...(CRASH.examBAlgo||[])];
+  const otherSec=[...DATA.B.filter(q=>q.cat==="情報セキュリティ"),...(CRASH.security||[]),...(CRASH.longBSec||[]),...(CRASH.examBSec||[])];
+  const a1=pickAdaptive(gapAlgo,14);
+  const usedA=new Set(a1.map(q=>q.id));
+  const a2=pickAdaptive(otherAlgo.filter(q=>!usedA.has(q.id)),2);
+  const s1=pickAdaptive(gapSec,3);
+  const usedS=new Set(s1.map(q=>q.id));
+  const s2=pickAdaptive(otherSec.filter(q=>!usedS.has(q.id)),1);
+  return shuffle([...a1,...a2,...s1,...s2]);
+}
+function awsByDomain(domain){ return AWS.filter(q=>q.domain===domain); }
+function buildAwsPractice20(){
+  return shuffle([
+    ...pickAdaptive(awsByDomain("secure"),6),
+    ...pickAdaptive(awsByDomain("resilient"),5),
+    ...pickAdaptive(awsByDomain("performance"),5),
+    ...pickAdaptive(awsByDomain("cost"),4)
+  ]);
+}
+function buildAwsMock(){
+  return shuffle([
+    ...pickAdaptive(awsByDomain("secure"),20),
+    ...pickAdaptive(awsByDomain("resilient"),17),
+    ...pickAdaptive(awsByDomain("performance"),15),
+    ...pickAdaptive(awsByDomain("cost"),13)
+  ]);
+}
+function buildDailyMix(){
+  return shuffle([
+    ...pickAdaptive(DATA.A,10),
+    ...pickAdaptive([...(CRASH.gapBAlgo||[])],8),
+    ...pickAdaptive([...(CRASH.gapBSec||[])],2),
+    ...buildAwsPractice20()
+  ]);
+}
+function startDailyMix(){
+  startQuiz(buildDailyMix(),{title:"毎日ルーティン FE＋AWS 40問",mode:"dailyMix",minutes:85,exam:false});
+}
+function todayCompleted(mode){
+  const today=localDay(Date.now());
+  return (state.history||[]).some(x=>x.mode===mode && localDay(x.at)===today);
 }
 function renderGuide(){
   main.innerHTML=`
@@ -646,16 +714,17 @@ function renderGuide(){
 function renderMock(){
   main.innerHTML=`
     <h2>本番形式</h2>
-    <section class="card"><h3>科目A ランダム模試</h3><p>60問・90分。テクノロジ41＋マネジメント7＋ストラテジ12で毎回組み直します。</p><button class="btn primary full" id="mockA">仕様準拠60問模試を開始</button></section>
-    <section class="card"><h3>科目A 追加固定セット</h3><p>今回追加した本番形式60問を、そのまま1セットで繰り返せます。</p><button class="btn secondary full" id="mockAPlus">追加60問セットを開始</button></section>
-    <section class="card"><h3>科目B ランダム模試</h3><p>20問・100分。短中問＋長文アルゴリズム16問、情報セキュリティ4問。本番難度を維持します。</p><button class="btn primary full" id="mockB">本番長文20問模試を開始</button></section>
-    <section class="card"><h3>科目B 追加固定セット</h3><p>本番形式20問×2セット。正解を覚えるまで同じセットを繰り返してもOKです。</p><div class="actions"><button class="btn secondary" id="mockBPlus1">セット①</button><button class="btn secondary" id="mockBPlus2">セット②</button></div></section>
-    <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">公開問題は出典を付けて収録。実際の出題論点の確認用です。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
-  $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"科目A 60問模試",mode:"mockA",minutes:90,exam:true});
+    <section class="card"><h3>FE 科目A</h3><p>60問・90分。テクノロジ41＋マネジメント7＋ストラテジ12。</p><button class="btn primary full" id="mockA">科目A 60問模試</button></section>
+    <section class="card"><h3>FE 科目B｜穴埋め重視</h3><p>20問・100分。今回の本番経験を反映し、初見仕様・穴埋めを大半にして16問アルゴリズム＋4問セキュリティ。</p><button class="btn primary full" id="mockB">科目B 20問模試</button></section>
+    <section class="card aws-card"><h3>AWS SAA-C03</h3><p>65問・130分。択一＋複数選択。公式4ドメイン比率に近い構成。</p><button class="btn primary full" id="mockAWS">SAA 65問模試</button><div class="actions"><button class="btn secondary" id="aws20">SAA 20問</button><button class="btn ghost" id="gapB20">FE B穴埋め20問</button></div></section>
+    <section class="card"><h3>科目A 追加固定セット</h3><p>追加した60問を同じ順で反復できます。</p><button class="btn secondary full" id="mockAPlus">追加60問セット</button></section>
+    <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">公開済み問題で実際の論点を確認。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
+  $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"FE 科目A 60問模試",mode:"mockA",minutes:90,exam:true});
+  $("#mockB").onclick=()=>startQuiz(buildMockBReal(),{title:"FE 科目B 穴埋め重視20問",mode:"mockB",minutes:100,exam:true});
+  $("#mockAWS").onclick=()=>startQuiz(buildAwsMock(),{title:"AWS SAA-C03 65問模試",mode:"mockAWS",minutes:130,exam:true});
+  $("#aws20").onclick=()=>startQuiz(buildAwsPractice20(),{title:"AWS SAA 本番形式20問",mode:"aws20",minutes:40,exam:false});
+  $("#gapB20").onclick=()=>startQuiz(pickAdaptive([...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])],20),{title:"FE B 穴埋め20問",mode:"gapB20",minutes:100,exam:false});
   $("#mockAPlus").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AX")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"科目A 追加60問セット",mode:"mockA",minutes:90,exam:true});
-  $("#mockB").onclick=()=>startQuiz(buildMockBReal(),{title:"科目B 本番長文20問",mode:"mockB",minutes:100,exam:true});
-  $("#mockBPlus1").onclick=()=>startQuiz([...CRASH.examBAlgo.filter(q=>q.id.startsWith("BX")).sort((a,b)=>a.id.localeCompare(b.id)),...CRASH.examBSec.filter(q=>q.id.startsWith("BX")).sort((a,b)=>a.id.localeCompare(b.id))],{title:"科目B 追加セット①",mode:"mockB",minutes:100,exam:true});
-  $("#mockBPlus2").onclick=()=>startQuiz([...CRASH.examBAlgo.filter(q=>q.id.startsWith("BY")).sort((a,b)=>a.id.localeCompare(b.id)),...CRASH.examBSec.filter(q=>q.id.startsWith("BY")).sort((a,b)=>a.id.localeCompare(b.id))],{title:"科目B 追加セット②",mode:"mockB",minutes:100,exam:true});
   $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
 }
 function reviewPool(filter){
@@ -730,9 +799,10 @@ function renderCurrentQuiz(){
       <div class="q-category">${esc(q.cat)} <span class="muted">・${esc(q.id)}</span></div>
       <div class="q-text">${esc(q.q)}</div>
       ${q.code?`<div class="code">${esc(q.code)}</div>`:""}
-      <div id="options">${q.opts.map((o,i)=>`<button class="option ${selected===i?"selected":""}" data-i="${i}"><span class="letter">${String.fromCharCode(65+i)}</span><span>${esc(o)}</span></button>`).join("")}</div>
+      ${isMulti(q)?`<div class="multi-note">複数選択：${q.a.length}つ選択</div>`:""}
+      <div id="options">${q.opts.map((o,i)=>{const on=isMulti(q)?(Array.isArray(selected)&&selected.includes(i)):selected===i;return `<button class="option ${on?"selected":""}" data-i="${i}"><span class="letter">${String.fromCharCode(65+i)}</span><span>${esc(o)}</span></button>`;}).join("")}</div>
       <div class="flag-row"><span class="muted" style="font-size:12px">自信がなければ復習対象に</span><button class="flag-btn ${flagged?"on":""}" id="flagBtn">？ 迷った</button></div>
-      ${(!cur.exam && selected!==undefined) ? `<div class="explain"><b>選択中：${String.fromCharCode(65+selected)}</b><div class="muted" style="font-size:12px">採点時に正解と解説を表示します。</div></div>`:""}
+      ${(!cur.exam && hasAnswer(selected)) ? `<div class="explain"><b>選択中：${answerLabel(selected)}</b><div class="muted" style="font-size:12px">採点時に正解と解説を表示します。</div></div>`:""}
       ${q.src?`<div class="past-source">${esc(q.src)}</div>`:""}
     </section>
     <div class="quiz-footer">
@@ -740,7 +810,21 @@ function renderCurrentQuiz(){
       ${cur.index===qs.length-1?`<button class="btn primary" id="finish">採点する</button>`:`<button class="btn primary" id="next">次へ →</button>`}
     </div>
     <div class="actions one"><button class="btn ghost full" id="quit">中断して保存</button></div>`;
-  $$(".option").forEach(b=>b.onclick=()=>{cur.answers[q.id]=Number(b.dataset.i);saveState();renderCurrentQuiz();});
+  $(".option").forEach(b=>b.onclick=()=>{
+    const i=Number(b.dataset.i);
+    if(isMulti(q)){
+      let arr=Array.isArray(cur.answers[q.id])?[...cur.answers[q.id]]:[];
+      if(arr.includes(i)) arr=arr.filter(x=>x!==i);
+      else {
+        if(arr.length>=q.a.length){toast(q.a.length+"つ選択してください");return;}
+        arr.push(i);
+      }
+      if(arr.length) cur.answers[q.id]=arr; else delete cur.answers[q.id];
+    } else {
+      cur.answers[q.id]=i;
+    }
+    saveState();renderCurrentQuiz();
+  });
   $("#flagBtn").onclick=()=>{cur.flags[q.id]=!cur.flags[q.id];saveState();renderCurrentQuiz();};
   if($("#prev")) $("#prev").onclick=()=>{cur.index--;saveState();renderCurrentQuiz();};
   if($("#next")) $("#next").onclick=()=>{cur.index++;saveState();renderCurrentQuiz();};
@@ -768,11 +852,11 @@ function finishQuiz(){
   qs.forEach(q=>{
     const ans=cur.answers[q.id],flag=!!cur.flags[q.id];
     if(flag)flagged++;
-    const ok=ans!==undefined&&ans===q.a;
-    if(ans!==undefined)answered++;
+    const ok=answerCorrect(q,ans);
+    if(hasAnswer(ans))answered++;
     if(ok)correct++;
     const st=statsFor(q);
-    if(ans!==undefined){st.attempts++;if(ok)st.correct++;else st.wrong++;st.lastAnswer=ans;}
+    if(hasAnswer(ans)){st.attempts++;if(ok)st.correct++;else st.wrong++;st.lastAnswer=ans;}
     st.uncertain=flag||(st.uncertain&&!ok);state.stats[q.id]=st;rows.push({q,ans,ok,flag});
   });
   const title=cur.title,mode=cur.mode;
@@ -785,6 +869,14 @@ function finishQuiz(){
 }
 function coachFor(q){
   if(EXPLAIN[q.id]) return EXPLAIN[q.id];
+  if(q.focus || q.steps || q.memory || q.trap){
+    return {
+      focus:q.focus || "正解を決める要件・条件を問題文から特定する。",
+      steps:q.steps || [q.exp || "解説を確認する。"],
+      memory:q.memory || "要件とサービス/処理を1対1で結び付けて覚える。",
+      trap:q.trap || "似た選択肢の役割の違いを確認する。"
+    };
+  }
   const text=((q.q||"")+" "+(q.code||"")+" "+(q.cat||"")).toLowerCase();
 
   if(text.includes("cidr") || text.match(/\/2[4-9]|\/3[0-2]/)){
@@ -971,7 +1063,7 @@ function renderResults(title,rows,correct,answered,flagged,mode){
       <div class="result-grid"><div class="result-box"><b>${rows.filter(r=>!r.ok).length}</b><div class="muted">誤答/未回答</div></div><div class="result-box"><b>${flagged}</b><div class="muted">迷った問題</div></div></div>
     </section>
     <section class="card"><h3>分野別</h3>${Object.entries(cats).map(([cat,x])=>`<div class="category-row"><div style="display:flex;justify-content:space-between"><b>${esc(cat)}</b><b>${x.c}/${x.n}</b></div><div class="bar"><span style="width:${pct(x.c,x.n)}%"></span></div></div>`).join("")}</section>
-    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${r.ans===undefined?"未回答":String.fromCharCode(65+r.ans)}</b>　正解：<b>${String.fromCharCode(65+r.q.a)}</b></p><div class="focus-box"><b>この問題ではここを見る</b><div>${esc(coachFor(r.q).focus)}</div></div><div class="solve-guide"><b>実際の解き方</b><ol>${coachFor(r.q).steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></div>${traceTableHtml(coachFor(r.q).trace)}<div class="explain"><b>なぜこの答えになるか</b><div>${esc(r.q.exp||"")}</div></div><div class="memory-tip"><b>こう覚えると楽</b><div>${esc(coachFor(r.q).memory)}</div></div><div class="trap-tip"><b>本番のひっかけ</b><div>${esc(coachFor(r.q).trap)}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
+    <section>${rows.map((r,i)=>`<details ${(!r.ok||r.flag)?"open":""}><summary>${i+1}. ${r.ok?"✅":"❌"} ${esc(r.q.q).slice(0,48)}${r.q.q.length>48?"…":""}${r.flag?"　？":""}</summary><div class="inside">${r.q.code?`<div class="code">${esc(r.q.code)}</div>`:""}<p>あなた：<b>${answerLabel(r.ans)}</b>　正解：<b>${answerLabel(r.q.a)}</b></p><div class="focus-box"><b>この問題ではここを見る</b><div>${esc(coachFor(r.q).focus)}</div></div><div class="solve-guide"><b>実際の解き方</b><ol>${coachFor(r.q).steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol></div>${traceTableHtml(coachFor(r.q).trace)}<div class="explain"><b>なぜこの答えになるか</b><div>${esc(r.q.exp||"")}</div></div><div class="memory-tip"><b>こう覚えると楽</b><div>${esc(coachFor(r.q).memory)}</div></div><div class="trap-tip"><b>本番のひっかけ</b><div>${esc(coachFor(r.q).trap)}</div></div>${r.q.src?`<div class="past-source">${esc(r.q.src)}</div>`:""}</div></details>`).join("")}</section>
     <div class="actions"><button class="btn primary" id="retryWrong">誤答・？を解く</button><button class="btn ghost" id="backHome">ホーム</button></div>`;
   $("#backHome").onclick=()=>view("home");
   $("#retryWrong").onclick=()=>{const pool=rows.filter(r=>!r.ok||r.flag).map(r=>r.q);if(!pool.length){toast("復習対象はありません");return;}startQuiz(pool,{title:"このセットの復習",mode:"retry",minutes:0,exam:false});};
