@@ -930,21 +930,19 @@ function renderGuide(){
 
 function renderMock(){
   main.innerHTML=`
-    <h2>本番形式</h2>
-    <section class="card"><h3>FE 科目A</h3><p>60問・90分。テクノロジ41＋マネジメント7＋ストラテジ12。</p><button class="btn primary full" id="mockA">科目A 60問模試</button></section>
-    <section class="card"><h3>FE 科目B｜穴埋め重視</h3><p>20問・100分。今回の本番経験を反映し、初見仕様・穴埋めを大半にして16問アルゴリズム＋4問セキュリティ。</p><button class="btn primary full" id="mockB">科目B 20問模試</button></section>
-    <section class="card aws-card"><h3>AWS SAA-C03</h3><p>65問・130分。択一＋複数選択。公式4ドメイン比率に近い構成。</p><button class="btn primary full" id="mockAWS">SAA 65問模試</button><div class="actions"><button class="btn secondary" id="aws20">SAA 20問</button><button class="btn ghost" id="gapB20">FE B穴埋め20問</button></div></section>
-    <section class="card"><h3>科目A 幅広60問セット</h3><p>初見用語・別論点を増やした追加60問。今回の590点から600超えを狙う補強セット。</p><button class="btn secondary full" id="mockAWide">幅広60問セット</button></section>
-    <section class="card"><h3>科目A 追加固定セット</h3><p>以前追加した60問を同じ順で反復できます。</p><button class="btn ghost full" id="mockAPlus">追加60問セット</button></section>
-    <section class="card"><h3>2026年度 IPA公開問題</h3><p class="muted">公開済み問題で実際の論点を確認。</p><button class="btn secondary full" id="past">公開問題 ${DATA.P.length}問</button></section>`;
-  $("#mockA").onclick=()=>startQuiz(buildMockA(),{title:"FE 科目A 60問模試",mode:"mockA",minutes:90,exam:true});
-  $("#mockB").onclick=()=>startQuiz(buildMockBReal(),{title:"FE 科目B 穴埋め重視20問",mode:"mockB",minutes:100,exam:true});
-  $("#mockAWS").onclick=()=>startQuiz(buildAwsMock(),{title:"AWS SAA-C03 65問模試",mode:"mockAWS",minutes:130,exam:true});
-  $("#aws20").onclick=()=>startQuiz(buildAwsPractice20(),{title:"AWS SAA 本番形式20問",mode:"aws20",minutes:40,exam:false});
-  $("#gapB20").onclick=()=>startQuiz(pickAdaptive([...(CRASH.gapBAlgo||[]),...(CRASH.gapBSec||[])],20),{title:"FE B 穴埋め20問",mode:"gapB20",minutes:100,exam:false});
-  $("#mockAWide").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AZ")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"FE 科目A 幅広60問",mode:"mockA",minutes:90,exam:true});
-  $("#mockAPlus").onclick=()=>startQuiz(DATA.A.filter(q=>q.id.startsWith("AX")).sort((a,b)=>a.id.localeCompare(b.id)),{title:"科目A 追加60問セット",mode:"mockA",minutes:90,exam:true});
-  $("#past").onclick=()=>startQuiz(DATA.P,{title:"2026年度 IPA公開問題",mode:"past",minutes:0,exam:false});
+    <h2>問題集</h2>
+    <section class="card fe-bank-card">
+      <div class="bank-head"><div><div class="bank-label">基本情報技術者</div><h3>FE 問題集</h3></div><span class="chip">${DATA.A.length+feBPool().length}問</span></div>
+      <p class="muted">科目A・科目B・本番模試・FEだけの復習。</p>
+      <button class="btn primary full" id="mockGoFE">FE問題集を開く</button>
+    </section>
+    <section class="card aws-card">
+      <div class="bank-head"><div><div class="bank-label">SAA-C03</div><h3>AWS SAA 問題集</h3></div><span class="chip">${AWS.length}問</span></div>
+      <p class="muted">4ドメイン・本番65問・AWSだけの復習。</p>
+      <button class="btn primary full" id="mockGoAWS">AWS問題集を開く</button>
+    </section>`;
+  bindClick("mockGoFE",()=>view("feBank"));
+  bindClick("mockGoAWS",()=>view("awsBank"));
 }
 function feBPool(){
   return [...new Map([
@@ -960,32 +958,46 @@ function reviewPool(filter){
     const s=statsFor(q);
     const needs=s.wrong>0 || s.uncertain;
     if(!needs) return false;
-    if(filter==="B") return DATA.B.some(x=>x.id===q.id) || (CRASH.gapBAlgo||[]).some(x=>x.id===q.id) || (CRASH.gapBSec||[]).some(x=>x.id===q.id);
+    if(filter==="B") return feBPool().some(x=>x.id===q.id);
+    if(filter==="FE") return DATA.A.some(x=>x.id===q.id) || feBPool().some(x=>x.id===q.id);
+    if(filter==="AWS") return AWS.some(x=>x.id===q.id);
     return true;
   });
   pool.sort((x,y)=>{const a=statsFor(x),b=statsFor(y);return Number(b.uncertain)-Number(a.uncertain) || b.wrong-a.wrong;});
   return pool;
 }
 function renderReview(){
-  const pool=reviewPool();
-  const perf=categoryPerformance();
+  const fePool=reviewPool("FE"), awsPool=reviewPool("AWS");
   main.innerHTML=`
-    <h2>誤答・迷いの復習</h2>
-    <section class="card">
-      <div class="result-grid">
-        <div class="result-box"><b style="font-size:25px">${pool.length}</b><div class="muted">復習対象</div></div>
-        <div class="result-box"><b style="font-size:25px">${overall().uncertain}</b><div class="muted">？付き</div></div>
-      </div>
-      <div class="actions"><button class="btn primary" id="r10">10問</button><button class="btn secondary" id="rAll">全部</button></div>
+    <h2>復習</h2>
+    <section class="card fe-bank-card">
+      <h3>FE 復習</h3>
+      <div class="result-grid"><div class="result-box"><b style="font-size:25px">${fePool.length}</b><div class="muted">誤答・迷い</div></div><div class="result-box"><b style="font-size:25px">${dueCount([...DATA.A,...feBPool()])}</b><div class="muted">期限到来</div></div></div>
+      <div class="actions"><button class="btn primary" id="reviewFE10">FE 10問</button><button class="btn secondary" id="reviewFEDue">FE期限復習</button></div>
     </section>
-    <section class="card">
-      <h3>この端末での分野別成績</h3>
-      ${perf.length ? perf.map(x=>`<div class="category-row"><div style="display:flex;justify-content:space-between"><b>${esc(x.cat)}</b><b>${x.accuracy}%</b></div><div class="bar"><span style="width:${x.accuracy}%"></span></div><div class="muted" style="font-size:11px">${x.correct}/${x.attempts} 正解</div></div>`).join("") : `<div class="empty">まだ回答履歴がありません。</div>`}
+    <section class="card aws-card">
+      <h3>AWS 復習</h3>
+      <div class="result-grid"><div class="result-box"><b style="font-size:25px">${awsPool.length}</b><div class="muted">誤答・迷い</div></div><div class="result-box"><b style="font-size:25px">${dueCount(AWS)}</b><div class="muted">期限到来</div></div></div>
+      <div class="actions"><button class="btn primary" id="reviewAWS10">AWS 10問</button><button class="btn secondary" id="reviewAWSDue">AWS期限復習</button></div>
     </section>
     <section class="card"><button class="btn danger full" id="reset">回答履歴をリセット</button></section>`;
-  $("#r10").onclick=()=>startReviewQuiz(10);
-  $("#rAll").onclick=()=>startReviewQuiz(Math.max(pool.length,1));
-  $("#reset").onclick=()=>{if(confirm("このiPhoneに保存した回答履歴をすべて削除しますか？")){localStorage.removeItem(STORAGE);state=JSON.parse(JSON.stringify(DEFAULT_STATE));toast("回答履歴を削除しました");renderReview();}};
+  bindClick("reviewFE10",()=>{
+    const p=reviewPool("FE"); if(!p.length){toast("FEの復習対象はありません");return;}
+    startQuiz(p.slice(0,10),{title:"FE 誤答・迷い復習",mode:"reviewFE",minutes:0,exam:false});
+  });
+  bindClick("reviewFEDue",()=>{
+    const p=dueQuestions([...DATA.A,...feBPool()]); if(!p.length){toast("FEの期限復習はありません");return;}
+    startQuiz(p.slice(0,15),{title:"FE 期限復習",mode:"feSpaced",minutes:0,exam:false});
+  });
+  bindClick("reviewAWS10",()=>{
+    const p=reviewPool("AWS"); if(!p.length){toast("AWSの復習対象はありません");return;}
+    startQuiz(p.slice(0,10),{title:"AWS 誤答・迷い復習",mode:"reviewAWS",minutes:0,exam:false});
+  });
+  bindClick("reviewAWSDue",()=>{
+    const p=dueQuestions(AWS); if(!p.length){toast("AWSの期限復習はありません");return;}
+    startQuiz(p.slice(0,15),{title:"AWS 期限復習",mode:"awsSpaced",minutes:0,exam:false});
+  });
+  bindClick("reset",()=>{if(confirm("このiPhoneに保存した回答履歴をすべて削除しますか？")){localStorage.removeItem(STORAGE);state=JSON.parse(JSON.stringify(DEFAULT_STATE));toast("回答履歴を削除しました");renderReview();}});
 }
 function startWeakQuiz(n,minutes=0){
   const weakCats=dynamicWeak().map(x=>x.cat);
